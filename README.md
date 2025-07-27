@@ -34,7 +34,7 @@ A two-agent architecture designed to improve fairness in AI-driven hiring decisi
 - ✅ Multi-Agent Architecture with bias detection feedback loops
 - ✅ LangGraph Integration with StateGraph and conditional routing
 - ✅ Google Gemma 3 model integration
-- ✅ API key management with multiple key rotation
+- ✅ API key management with environment configuration
 - ✅ Production-ready error handling and logging
 
 ## 🚀 Quick Start
@@ -73,7 +73,7 @@ A two-agent architecture designed to improve fairness in AI-driven hiring decisi
 
 - **Dual-Agent Architecture**: Job matching and bias detection agents
 - **Self-Auditing Pipeline**: Automatic bias detection and re-evaluation
-- **Multi-API Key Management**: Automatic rotation across multiple Google API keys
+- **Rate Limiting**: API request throttling for quota management
 - **Memory Persistence**: Stateful workflow with checkpointing
 - **Model Support**: Google Gemma 3 (27B-IT) model
 - **Batch Processing**: Large-scale candidate evaluation
@@ -144,9 +144,6 @@ python batch_processor.py
 
 # Generate charts
 python chart_generator.py
-
-# Monitor API key usage
-python -m key_manager.monitor_api_keys
 ```
 
 ### Python API
@@ -185,7 +182,7 @@ class Config:
     DEFAULT_BIAS_ON_ERROR = "unbiased"   # Conservative default
 ```
 
-The system uses dynamic API key management from the `key_manager` module to handle multiple Google API keys automatically.
+The system uses environment-based API key configuration for Google API access.
 
 ### Customizing Prompts
 
@@ -302,12 +299,10 @@ Shows the LangGraph state machine with:
 Technical architecture showing:
 
 - **Input Layer:** Resume, Job Description, Interview Transcript, Role
-- **API Management:** Multi-key rotation, rate limiting
+- **API Management:** Rate limiting and API key configuration
 - **AI Agents:** Job matching and bias classification components
 - **LangGraph Core:** StateGraph, checkpointing, conditional routing
-- **Output Layer:** Final decisions, bias classifications, audit trails
-
-## �📁 Project Structure
+- **Output Layer:** Final decisions, bias classifications, audit trails## �📁 Project Structure
 
 ```
 langgraph-hiring-system/
@@ -318,9 +313,6 @@ langgraph-hiring-system/
 │   └── agents/                   # Multi-agent components
 │       ├── job_matching_agent.py # Hiring decision agent
 │       └── bias_classification_agent.py # Bias detection agent
-├── key_manager/                  # API key management
-│   ├── api_key_manager.py        # Multi-key rotation system
-│   └── monitor_api_keys.py       # Key monitoring utility
 ├── run.py                        # Main entry point
 ├── batch_processor.py            # Batch processing
 ├── chart_generator.py            # Analytics and charts
@@ -381,7 +373,7 @@ The system supports multiple API keys for increased quota:
 
 **Quick Test**: Run `python run.py` to verify everything works
 
-**Monitor Keys**: Run `python -m key_manager.monitor_api_keys` to check API key status
+**System Requirements**: Ensure you have a valid Google API key configured in your environment.
 
 ## 📝 Logging
 

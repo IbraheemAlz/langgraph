@@ -273,7 +273,7 @@ class HiringSystemChartGenerator:
 • State Management: InMemorySaver with checkpointing
 • Max Re-evaluations: 2 attempts per candidate
 • Model: Google Gemma 3 (27B-IT) via API
-• API Management: Multi-key rotation system
+• API Management: Single API key configuration
 • Memory: Persistent evaluation insights tracking"""
         
         ax.text(0.01, 0.99, info_text, transform=ax.transAxes, fontsize=11,
@@ -322,7 +322,6 @@ should_continue() checks:
             
             # API Management Layer - better spacing
             "API Key Manager": (1, 11),
-            "Multi-Key Rotation": (4, 11),
             "Rate Limiter": (7, 11),
             
             # Agent layer - more separation
@@ -359,7 +358,6 @@ should_continue() checks:
             
             # API Management (orange)
             "API Key Manager": {"color": "#FF9800", "size": 3000, "shape": "s"},
-            "Multi-Key Rotation": {"color": "#FF9800", "size": 3000, "shape": "s"},
             "Rate Limiter": {"color": "#FF9800", "size": 3000, "shape": "s"},
             
             # Agents (blue)
@@ -401,7 +399,6 @@ should_continue() checks:
         connections = [
             # Input to API Management
             {"start": "Resume", "end": "API Key Manager", "style": "--", "color": "gray", "width": 1},
-            {"start": "Job Description", "end": "Multi-Key Rotation", "style": "--", "color": "gray", "width": 1},
             {"start": "Interview Transcript", "end": "Rate Limiter", "style": "--", "color": "gray", "width": 1},
             
             # Input to agents (main flow)
@@ -417,7 +414,6 @@ should_continue() checks:
             
             # API Management to LLM
             {"start": "API Key Manager", "end": "Google Gemma 3\n(27B-IT)", "style": "-", "color": "red", "width": 2},
-            {"start": "Multi-Key Rotation", "end": "Google Gemma 3\n(27B-IT)", "style": "-", "color": "red", "width": 2},
             {"start": "Rate Limiter", "end": "Google Gemma 3\n(27B-IT)", "style": "-", "color": "red", "width": 2},
             
             # Agents to LLM

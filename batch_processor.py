@@ -18,7 +18,6 @@ sys.path.append(str(Path(__file__).parent / "src"))
 
 from src.main import create_hiring_workflow
 from src.rate_limiter import set_rate_limit
-from key_manager import get_key_usage_stats, initialize_api_key_manager
 
 # Configure logging
 logging.basicConfig(
@@ -273,22 +272,14 @@ def print_summary(results: list):
         print(f"🔄 Total Re-evaluations: {total_reevals}")
         print(f"📊 Avg Re-evaluations: {total_reevals/successful:.2f}")
     
-    # Show API key usage statistics
+    # Show processing statistics
     try:
-        print("\n🔑 API KEY USAGE STATISTICS:")
+        print("\n� PROCESSING STATISTICS:")
         print("-"*30)
-        stats = get_key_usage_stats()
-        total_api_requests = sum(stat['total_requests'] for stat in stats.values())
-        active_keys = len([stat for stat in stats.values() if stat['total_requests'] > 0])
-        
-        print(f"🔑 Active API Keys: {active_keys}/{len(stats)}")
-        print(f"📈 Total API Requests: {total_api_requests}")
-        
-        for key_id, stat in stats.items():
-            if stat['total_requests'] > 0:
-                print(f"  • {key_id}: {stat['total_requests']} requests")
+        print(f"📈 Total Processed: {len(results['results'])}")
+        print(f"⏱️  Processing Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     except Exception as e:
-        print(f"\n⚠️  Could not load API key statistics: {e}")
+        print(f"\n⚠️  Could not load processing statistics: {e}")
 
 
 def main():
@@ -317,12 +308,9 @@ def main():
         print("🗑️  Clear existing results mode enabled")
     
     try:
-        # Setup rate limiting with API Key Manager
-        initialize_api_key_manager(rate_limit_per_minute=args.rate_limit)
-        print(f"🔑 API Key Manager initialized with {args.rate_limit} requests per minute per key")
-        
-        # Legacy rate limiter call (now just shows warning)
+        # Setup rate limiting
         set_rate_limit(args.rate_limit)
+        print(f"⚡ Rate limiter set to {args.rate_limit} requests per minute")
         
         # Load dataset
         df = load_dataset(args.csv, args.max_rows)

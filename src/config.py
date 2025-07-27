@@ -4,7 +4,6 @@ Configuration settings for the Multi-Agent AI Hiring System.
 
 import os
 from typing import Dict, Any
-from key_manager import get_current_api_key
 
 class Config:
     """Configuration class for the hiring system."""
@@ -20,25 +19,22 @@ class Config:
     
     @classmethod
     def get_model_config(cls) -> Dict[str, Any]:
-        """Get model configuration for Google Gemini with dynamic API key."""
+        """Get model configuration for Google Gemini with single API key."""
         return {
             "model": cls.MODEL_NAME,
             "temperature": cls.MODEL_TEMPERATURE,
             "convert_system_message_to_human": False,
-            "google_api_key": get_current_api_key()  # Dynamic API key from manager
+            "google_api_key": os.getenv("GOOGLE_API_KEY")  # Single API key from environment
         }
     
     @classmethod
     def validate_environment(cls) -> bool:
         """Validate that required environment variables are set."""
-        # Check for at least one API key
-        has_main_key = bool(os.getenv("GOOGLE_API_KEY"))
-        has_numbered_keys = any(os.getenv(f"GOOGLE_API_KEY_{i}") for i in range(1, 10))
+        # Check for single API key
+        api_key = os.getenv("GOOGLE_API_KEY")
         
-        if not has_main_key and not has_numbered_keys:
-            print("Missing required API keys. Please set GOOGLE_API_KEY or GOOGLE_API_KEY_1, GOOGLE_API_KEY_2, etc.")
-            return False
-            print(f"Please set these variables in your .env file")
+        if not api_key:
+            print("Missing required API key. Please set GOOGLE_API_KEY in your .env file.")
             return False
             
         return True

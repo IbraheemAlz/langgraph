@@ -389,5 +389,4 @@ scratch/
 !.gitignore
 !.env.example
 !src/
-!key_manager/
 !*.py

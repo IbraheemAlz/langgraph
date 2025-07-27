@@ -101,7 +101,6 @@ def main():
     logger.info("2. Run: python run.py (to test the system)")
     logger.info("3. Run: python batch_processor.py (for batch processing)")
     logger.info("4. Run: python chart_generator.py (for analytics)")
-    logger.info("5. Run: python -m key_manager.monitor_api_keys (to monitor API usage)")
     logger.info("\nFor more information, see README.md")
 
 if __name__ == "__main__":

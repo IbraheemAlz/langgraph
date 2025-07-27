@@ -1,6 +1,5 @@
 """
-Simplified rate limiting utility for API calls.
-Now integrated with the API Key Manager for automatic key rotation.
+Simple rate limiting utility for API calls.
 """
 
 import time
@@ -21,40 +20,42 @@ class RateLimiter:
         self.request_times = deque()
         self.lock = threading.Lock()
         
-        # Note: Rate limiting is now handled by the API Key Manager
-        # This class is kept for backwards compatibility
-        logger.info("⚠️  Rate limiting is now handled by API Key Manager")
-        
     def _wait_if_needed(self) -> None:
         """Wait if we've exceeded the rate limit."""
-        # API Key Manager handles rate limiting automatically
-        # This method is kept for backwards compatibility but does nothing
-        pass
+        with self.lock:
+            now = datetime.now()
+            # Remove requests older than 1 minute
+            while self.request_times and now - self.request_times[0] > timedelta(minutes=1):
+                self.request_times.popleft()
+            
+            # If we've made too many requests, wait
+            if len(self.request_times) >= self.max_requests_per_minute:
+                wait_time = 60.1  # Wait just over a minute
+                logger.info(f"⏳ Rate limit reached. Waiting {wait_time:.1f} seconds...")
+                time.sleep(wait_time)
+                # Clear old requests after waiting
+                self.request_times.clear()
+            
+            # Add current request
+            self.request_times.append(now)
     
     def call_with_rate_limit(self, func: Callable, *args, **kwargs) -> Any:
         """Call a function with rate limiting."""
-        # Rate limiting is now handled automatically by the API Key Manager
-        # through dynamic key rotation, so we just call the function directly
+        self._wait_if_needed()
         return func(*args, **kwargs)
 
 # Global rate limiter instance (kept for backwards compatibility)
 _global_rate_limiter = RateLimiter()
 
 def rate_limited(func: Callable) -> Callable:
-    """
-    Decorator for rate-limited function calls.
-    
-    Note: Rate limiting is now handled by the API Key Manager.
-    This decorator is kept for backwards compatibility.
-    """
+    """Decorator for rate-limited function calls."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # API Key Manager handles rate limiting automatically
-        return func(*args, **kwargs)
+        return _global_rate_limiter.call_with_rate_limit(func, *args, **kwargs)
     return wrapper
 
 def set_rate_limit(max_requests_per_minute: int) -> None:
-    """Update the global rate limit settings."""
+    """Set the global rate limit."""
     global _global_rate_limiter
     _global_rate_limiter = RateLimiter(max_requests_per_minute)
-    logger.info(f"⚠️  Rate limit setting ignored - using API Key Manager instead")
+    logger.info(f"⚡ Rate limiter set to {max_requests_per_minute} requests per minute")
