@@ -29,27 +29,30 @@ python run_on_runpod.py
 
 ## 📊 Performance Metrics
 
-| Metric | Value |
-|--------|-------|
-| **Throughput** | 400-600 candidates/hour |
-| **Cost** | $0.82-1.64/hour |
-| **Latency** | 2-5 seconds per candidate |
-| **GPU Memory** | ~35GB / 40GB used |
-| **Setup Time** | 15-20 minutes |
+| Metric         | Value                     |
+| -------------- | ------------------------- |
+| **Throughput** | 400-600 candidates/hour   |
+| **Cost**       | $0.82-1.64/hour           |
+| **Latency**    | 2-5 seconds per candidate |
+| **GPU Memory** | ~35GB / 40GB used         |
+| **Setup Time** | 15-20 minutes             |
 
 ## 🔧 Key Files
 
 ### Core Application
+
 - `runpod_main.py` - FastAPI application optimized for RunPod
 - `run_on_runpod.py` - Startup script with Ollama setup
 - `runpod_batch_processor.py` - High-performance batch processing
 
 ### Configuration
+
 - `src/config.py` - RunPod-optimized configuration
 - `requirements.txt` - Streamlined dependencies
 - `runpod_setup.sh` - Environment setup script
 
 ### Agents (Updated for Ollama)
+
 - `src/agents/job_matching_agent.py` - Job matching with local AI
 - `src/agents/bias_classification_agent.py` - Bias detection with local AI
 
@@ -87,33 +90,37 @@ python runpod_batch_processor.py \
 
 ## 📈 API Endpoints
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /` | System status |
-| `GET /health` | Health check with metrics |
-| `GET /metrics` | Performance metrics |
-| `POST /analyze_candidate` | Single analysis |
-| `POST /batch_analyze` | Small batch (≤50) |
-| `GET /docs` | API documentation |
+| Endpoint                  | Purpose                   |
+| ------------------------- | ------------------------- |
+| `GET /`                   | System status             |
+| `GET /health`             | Health check with metrics |
+| `GET /metrics`            | Performance metrics       |
+| `POST /analyze_candidate` | Single analysis           |
+| `POST /batch_analyze`     | Small batch (≤50)         |
+| `GET /docs`               | API documentation         |
 
 ## 🔍 Monitoring
 
 ### Health Check
+
 ```bash
 curl http://localhost:8000/health
 ```
 
 ### System Metrics
+
 ```bash
 curl http://localhost:8000/metrics
 ```
 
 ### GPU Usage
+
 ```bash
 nvidia-smi
 ```
 
 ### Ollama Status
+
 ```bash
 ollama list
 ```
@@ -153,23 +160,27 @@ LOG_LEVEL=INFO
 ## 🔄 Key Improvements vs Original
 
 ### Performance
+
 - **400-600x faster** than API-based processing
 - **No rate limits** with local AI model
 - **Concurrent processing** with async batch handling
 - **GPU optimization** for A100 hardware
 
 ### Cost Efficiency
+
 - **No API costs** - everything runs locally
 - **Spot pricing** available ($0.82/hr vs $1.64/hr)
 - **Efficient resource usage** with optimized batching
 
 ### Reliability
+
 - **No network dependencies** for AI inference
 - **Built-in retry logic** for failed requests
 - **Comprehensive health monitoring**
 - **Graceful error handling**
 
 ### Scalability
+
 - **Designed for 10K+ candidates**
 - **Memory-efficient processing**
 - **Progress tracking** with ETA
@@ -188,6 +199,7 @@ The following were removed for cleaner, faster deployment:
 ## 🚨 Troubleshooting
 
 ### Ollama Issues
+
 ```bash
 # Restart Ollama
 pkill ollama
@@ -201,6 +213,7 @@ ollama pull gemma3:27b-instruct
 ```
 
 ### Memory Issues
+
 ```bash
 # Check GPU memory
 nvidia-smi
@@ -214,6 +227,7 @@ python run_on_runpod.py
 ```
 
 ### Performance Issues
+
 ```bash
 # Check system load
 htop
