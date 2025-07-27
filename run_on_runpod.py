@@ -95,7 +95,7 @@ def check_model():
             models = response.json().get('models', [])
             model_names = [model.get('name', '') for model in models]
             
-            if any('gemma3:27b-instruct' in name for name in model_names):
+            if any('gemma3:27b' in name for name in model_names):
                 logger.info("✅ Gemma 3 model is available")
                 return True
             else:
@@ -118,7 +118,7 @@ def download_model():
     try:
         # Download model with progress monitoring
         process = subprocess.Popen(
-            ['ollama', 'pull', 'gemma3:27b-instruct'],
+            ['ollama', 'pull', 'gemma3:27b'],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -161,7 +161,7 @@ def start_application():
     # Set environment variables
     os.environ.update({
         'OLLAMA_BASE_URL': 'http://localhost:11434',
-        'MODEL_NAME': 'gemma3:27b-instruct',
+        'MODEL_NAME': 'gemma3:27b',
         'RUNPOD_POD_ID': os.getenv('RUNPOD_POD_ID', 'unknown'),
         'WORKSPACE_PATH': '/workspace/langgraph',
         'LOG_LEVEL': 'INFO'
@@ -230,7 +230,7 @@ def main():
     # Download model
     if not download_model():
         logger.error("❌ Failed to download model")
-        logger.info("💡 You can try downloading manually: ollama pull gemma3:27b-instruct")
+        logger.info("💡 You can try downloading manually: ollama pull gemma3:27b")
         return 1
     
     # Final health check

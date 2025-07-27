@@ -11,7 +11,7 @@ class Config:
     # === OLLAMA CONFIGURATION ===
     # Use local Ollama instead of Google API
     OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-    MODEL_NAME = os.getenv('MODEL_NAME', 'gemma3:27b-instruct')
+    MODEL_NAME = os.getenv('MODEL_NAME', 'gemma3:27b')
     USE_LOCAL_MODEL = True
     
     # Remove API key dependency for local deployment

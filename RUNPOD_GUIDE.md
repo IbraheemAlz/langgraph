@@ -6,14 +6,14 @@
 
 1. **Go to RunPod.io** and log in
 2. **Click "Pods" in the side menu**
-3. **Select GPU**: Choose **H100 PCIe** (94GB VRAM)
+3. **Select GPU**: Choose **H100 PCIe** (80GB VRAM)
 4. **GPU Count**: Keep at **1**
 5. **Template**: Keep **"Runpod PyTorch 2.8.0"**
 
 ### Step 2: Configure Pricing
 
-- **For Testing**: Select **"On-Demand"** (~$1.60/hr)
-- **For Production**: Select **"Spot"** (~$0.80/hr - 50% cheaper)
+- **For Testing**: Select **"On-Demand"** (~$2.39/hr)
+- **For Production**: Select **"Spot"** (~$2.03/hr - 15% cheaper)
 
 ### Step 3: Enable Required Options
 
@@ -101,9 +101,9 @@ python runpod_batch_processor.py --input your_data.csv
 | Metric               | H100 PCIe Performance                    |
 | -------------------- | ---------------------------------------- |
 | **Processing Speed** | 1,200-1,800 candidates/hour              |
-| **Cost per Hour**    | $0.80 (Spot) / $1.60 (On-Demand)         |
+| **Cost per Hour**    | $2.03 (Spot) / $2.39 (On-Demand)         |
 | **Startup Time**     | 10-15 minutes (including model download) |
-| **GPU Memory Usage** | ~50GB / 94GB available                   |
+| **GPU Memory Usage** | ~50GB / 80GB available                   |
 | **Total Time (10K)** | 6-8 hours                                |
 
 ---
@@ -135,7 +135,7 @@ python runpod_batch_processor.py --input your_data.csv
 - **Processing Speed**: 1,200-1,800 candidates/hour
 - **Parallel Workers**: 12
 - **Batch Size**: 10 candidates simultaneously
-- **Memory Usage**: 90% of 94GB VRAM
+- **Memory Usage**: 90% of 80GB VRAM
 - **Expected Time**: 6-8 hours for 10K candidates
 
 ### Environment Variables (Auto-configured)

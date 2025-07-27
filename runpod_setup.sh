@@ -1,9 +1,9 @@
 #!/bin/bash
-"""
-RunPod Environment Setup Script
-==============================
-Sets up the complete environment for the AI Hiring System on RunPod
-"""
+#
+# RunPod Environment Setup Script
+# ==============================
+# Sets up the complete environment for the AI Hiring System on RunPod
+#
 
 echo "🚀 Setting up AI Hiring System on RunPod..."
 echo "📅 $(date)"
@@ -52,6 +52,21 @@ else
     echo "✅ Ollama already installed"
 fi
 
+# Start Ollama service
+echo "🚀 Starting Ollama service..."
+pkill ollama 2>/dev/null || true
+ollama serve &
+sleep 10
+
+# Verify Ollama is running
+echo "🔍 Verifying Ollama service..."
+if curl -s http://localhost:11434/api/version >/dev/null 2>&1; then
+    echo "✅ Ollama service is running"
+else
+    echo "❌ Ollama service failed to start"
+    exit 1
+fi
+
 # Install Python dependencies
 echo "📦 Installing Python dependencies..."
 pip install --upgrade pip
@@ -65,7 +80,7 @@ echo "⚙️ Setting up H100-optimized environment..."
 cat > .env << EOF
 # H100 PCIe Optimized Configuration
 OLLAMA_BASE_URL=http://localhost:11434
-MODEL_NAME=gemma3:27b-instruct
+MODEL_NAME=gemma3:27b
 RUNPOD_POD_ID=${RUNPOD_POD_ID:-unknown}
 WORKSPACE_PATH=/workspace/langgraph
 LOG_LEVEL=INFO
@@ -108,18 +123,36 @@ except Exception as e:
     exit(1)
 "
 
+# Download the AI model
+echo "📥 Downloading Gemma 3 model..."
+echo "⏰ This may take 5-10 minutes on H100..."
+if ollama pull gemma3:27b; then
+    echo "✅ Model downloaded successfully"
+else
+    echo "❌ Model download failed"
+    echo "💡 You can try downloading manually: ollama pull gemma3:27b"
+fi
+
+# Verify model is available
+echo "🔍 Verifying model availability..."
+if ollama list | grep -q "gemma3:27b"; then
+    echo "✅ Gemma 3 model is ready"
+else
+    echo "⚠️ Model verification failed - check manually with: ollama list"
+fi
+
 echo ""
-echo "✅ H100 Setup complete!"
+echo "🎉 H100 Setup Complete!"
 echo ""
-echo "🎯 Next steps:"
+echo "🎯 Your system is ready! Next steps:"
 echo "1. Run: python run_on_runpod.py"
-echo "2. Wait for model download (5-10 minutes with H100 speed)"
-echo "3. Access your app at http://[pod-ip]:8000"
+echo "2. Access your app at http://[pod-ip]:8000"
+echo "3. For batch processing: python runpod_batch_processor.py --input your_data.csv"
 echo ""
-echo "📊 For batch processing:"
-echo "  • Use: python runpod_batch_processor.py --input your_data.csv"
-echo "  • Expected: 1,200-1,800 candidates/hour"
+echo "📊 Expected Performance:"
+echo "  • Processing: 1,200-1,800 candidates/hour"
 echo "  • Time for 10K candidates: 6-8 hours"
+echo "  • GPU Usage: 80-90% on H100"
 echo ""
 echo "🔧 Useful commands:"
 echo "  • Check Ollama: ollama list"
