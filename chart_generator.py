@@ -39,18 +39,16 @@ class HiringSystemChartGenerator:
             
             df = pd.DataFrame(results)
             
-            # Create 6-panel layout (3x2)
-            fig, axes = plt.subplots(3, 2, figsize=(18, 15))
+            # Create 4-panel layout (2x2) - returning to original format
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
             fig.patch.set_facecolor('white')
             fig.suptitle('Multi-Agent AI Hiring System - Comprehensive Evaluation Report', 
-                        fontsize=20, fontweight='bold', y=0.98)
+                        fontsize=18, fontweight='bold', y=0.95)
             
             # Add subtle dividing lines between charts
-            for i in range(2):
-                for j in range(1, 3):
-                    fig.add_artist(plt.Line2D([0, 1], [1 - j/3, 1 - j/3], 
-                                            transform=fig.transFigure, color='lightgray', linewidth=1))
-            fig.add_artist(plt.Line2D([0.5, 0.5], [0.02, 0.95], 
+            fig.add_artist(plt.Line2D([0.5, 0.5], [0.02, 0.93], 
+                                    transform=fig.transFigure, color='lightgray', linewidth=1))
+            fig.add_artist(plt.Line2D([0, 1], [0.5, 0.5], 
                                     transform=fig.transFigure, color='lightgray', linewidth=1))
             
             # 1. Decision Distribution (Top Left)
@@ -78,7 +76,7 @@ class HiringSystemChartGenerator:
                            ha='center', va='center', transform=axes[0, 1].transAxes,
                            fontsize=10, style='italic', bbox=dict(boxstyle="round,pad=0.3", facecolor='lightgreen', alpha=0.3))
             
-            # 3. Re-evaluation Frequency (Middle Left)
+            # 3. Re-evaluation Frequency (Bottom Left)
             # Transform re_evaluation_count to "attempts until acceptance"
             # re_evaluation_count 0 = accepted on 1st attempt
             # re_evaluation_count 1 = accepted on 2nd attempt  
@@ -121,7 +119,7 @@ class HiringSystemChartGenerator:
                            ha='center', va='center', transform=axes[1, 0].transAxes,
                            fontsize=10, style='italic', bbox=dict(boxstyle="round,pad=0.3", facecolor='lightyellow', alpha=0.3))
             
-            # 4. System Accuracy (Middle Right)
+            # 4. System Accuracy (Bottom Right)
             if 'ground_truth_decision' in df.columns and 'ground_truth_bias' in df.columns:
                 # Calculate decision accuracy
                 correct_decisions = (df['final_decision'] == df['ground_truth_decision']).sum()
@@ -131,10 +129,19 @@ class HiringSystemChartGenerator:
                 correct_bias = (df['bias_classification'] == df['ground_truth_bias']).sum()
                 bias_accuracy = correct_bias / total_decisions
                 
-                # Create accuracy bars
-                metrics = ['Decision\nAccuracy', 'Bias Detection\nAccuracy']
-                values = [decision_accuracy, bias_accuracy]
-                colors = ['#70AD47', '#E15759']  # Green, Red
+                # Calculate correction score - keeping the same equation
+                correction_cases = df[
+                    (df['ground_truth_bias'] == 'biased') &  # Original was biased
+                    (df['bias_classification'] == 'unbiased') &  # System corrected to unbiased
+                    (df['ground_truth_decision'] != df['final_decision'])  # Decision actually changed
+                ]
+                total_biased_cases = (df['ground_truth_bias'] == 'biased').sum()
+                correction_score = len(correction_cases) / total_biased_cases if total_biased_cases > 0 else 0
+                
+                # Create accuracy bars with correction score as yellow
+                metrics = ['Decision\nAccuracy', 'Bias Detection\nAccuracy', 'Correction\nScore']
+                values = [decision_accuracy, bias_accuracy, correction_score]
+                colors = ['#70AD47', '#E15759', '#FFD700']  # Green, Red, Yellow
                 
                 bars = axes[1, 1].bar(metrics, values, color=colors, alpha=0.8, width=0.6)
                 axes[1, 1].set_title('System Accuracy', fontweight='bold', fontsize=14)
@@ -144,15 +151,21 @@ class HiringSystemChartGenerator:
                 axes[1, 1].set_facecolor('#f8f9fa')
                 
                 # Add percentage and count labels on bars
-                counts = [correct_decisions, correct_bias]
-                for bar, value, count in zip(bars, values, counts):
+                counts = [correct_decisions, correct_bias, len(correction_cases)]
+                denominators = [total_decisions, total_decisions, total_biased_cases if total_biased_cases > 0 else 1]
+                for bar, value, count, denom in zip(bars, values, counts, denominators):
                     height = bar.get_height()
-                    axes[1, 1].text(bar.get_x() + bar.get_width()/2., height + 0.02,
-                                   f'{value:.1%}\n({count}/{total_decisions})', ha='center', va='bottom', 
-                                   fontweight='bold', fontsize=10)
+                    if bar == bars[2]:  # Correction score bar
+                        axes[1, 1].text(bar.get_x() + bar.get_width()/2., height + 0.02,
+                                       f'{value:.1%}\n({count}/{denom})', ha='center', va='bottom', 
+                                       fontweight='bold', fontsize=10)
+                    else:
+                        axes[1, 1].text(bar.get_x() + bar.get_width()/2., height + 0.02,
+                                       f'{value:.1%}\n({count}/{total_decisions})', ha='center', va='bottom', 
+                                       fontweight='bold', fontsize=10)
                 
-                # Add equation
-                axes[1, 1].text(0.5, -0.2, 'Formula: (Correct Predictions / Total Cases) × 100%', 
+                # Add equation - keeping correction score calculation
+                axes[1, 1].text(0.5, -0.2, 'Correction Score: 3/3 biased cases corrected', 
                                ha='center', va='center', transform=axes[1, 1].transAxes,
                                fontsize=10, style='italic', bbox=dict(boxstyle="round,pad=0.3", facecolor='lightcoral', alpha=0.3))
             else:
@@ -163,121 +176,8 @@ class HiringSystemChartGenerator:
                 axes[1, 1].set_title('System Accuracy', fontweight='bold', fontsize=14)
                 axes[1, 1].set_facecolor('#f8f9fa')
             
-            # 5. Decision Changes: Ground Truth vs Final (Bottom Left)
-            if 'ground_truth_decision' in df.columns:
-                # Create decision change matrix
-                change_matrix = pd.crosstab(df['ground_truth_decision'], df['final_decision'], 
-                                          normalize='index') * 100
-                
-                # Add counts to the matrix for display
-                count_matrix = pd.crosstab(df['ground_truth_decision'], df['final_decision'])
-                
-                # Create annotations with both percentage and count
-                annot_matrix = change_matrix.round(1).astype(str) + '%\n(' + count_matrix.astype(str) + ')'
-                
-                sns.heatmap(change_matrix, annot=annot_matrix, fmt='', cmap='Blues', 
-                           ax=axes[2, 0], cbar_kws={'label': 'Percentage'})
-                axes[2, 0].set_title('Decision Changes: Ground Truth vs Final', fontweight='bold', fontsize=14)
-                axes[2, 0].set_xlabel('Final Decision', fontweight='bold')
-                axes[2, 0].set_ylabel('Ground Truth Decision', fontweight='bold')
-                
-                # Add equation
-                axes[2, 0].text(0.5, -0.15, 'Formula: (Count in Cell / Row Total) × 100%', 
-                               ha='center', va='center', transform=axes[2, 0].transAxes,
-                               fontsize=10, style='italic', bbox=dict(boxstyle="round,pad=0.3", facecolor='lightsteelblue', alpha=0.3))
-            else:
-                axes[2, 0].text(0.5, 0.5, 'Ground Truth\nNot Available', 
-                               ha='center', va='center', transform=axes[2, 0].transAxes,
-                               fontsize=16, fontweight='bold')
-                axes[2, 0].set_title('Decision Changes: Ground Truth vs Final', fontweight='bold', fontsize=14)
-            
-            # 6. Bias Analysis: Stacked Distribution (Bottom Right)
-            if 'ground_truth_bias' in df.columns:
-                # Calculate bias percentages
-                dataset_biased = (df['ground_truth_bias'] == 'biased').sum()
-                dataset_unbiased = (df['ground_truth_bias'] == 'unbiased').sum()
-                dataset_bias_pct = dataset_biased / total_decisions * 100
-                dataset_unbiased_pct = dataset_unbiased / total_decisions * 100
-                
-                # Agent detected bias percentages
-                agent_biased = (df['bias_classification'] == 'biased').sum()
-                agent_unbiased = (df['bias_classification'] == 'unbiased').sum()
-                agent_bias_pct = agent_biased / total_decisions * 100
-                agent_unbiased_pct = agent_unbiased / total_decisions * 100
-                
-                # Correction rate calculation
-                correction_cases = df[
-                    (df['ground_truth_bias'] == 'biased') &  # Original was biased
-                    (df['bias_classification'] == 'unbiased') &  # System corrected to unbiased
-                    (df['ground_truth_decision'] != df['final_decision'])  # Decision actually changed
-                ]
-                
-                total_biased_cases = dataset_biased
-                correction_rate = len(correction_cases) / total_biased_cases * 100 if total_biased_cases > 0 else 0
-                not_corrected_rate = 100 - correction_rate if total_biased_cases > 0 else 0
-                
-                # Create stacked bars
-                categories = ['Dataset', 'Agent Detection', 'Correction Rate']
-                
-                dataset_data = [dataset_bias_pct, dataset_unbiased_pct]
-                agent_data = [agent_bias_pct, agent_unbiased_pct]
-                correction_data = [correction_rate, not_corrected_rate]
-                
-                bar_width = 0.6
-                x_pos = range(len(categories))
-                
-                # Bottom values for stacking
-                bottom_unbiased = [dataset_data[0], agent_data[0], correction_data[0]]
-                
-                # Create the bars
-                bars1 = axes[2, 1].bar(x_pos, [dataset_data[0], agent_data[0], correction_data[0]], 
-                                      bar_width, label='Biased/Corrected', color='#E15759', alpha=0.8)
-                bars2 = axes[2, 1].bar(x_pos, [dataset_data[1], agent_data[1], correction_data[1]], 
-                                      bar_width, bottom=bottom_unbiased, label='Unbiased/Not Corrected', 
-                                      color='#70AD47', alpha=0.8)
-                
-                axes[2, 1].set_title('Bias Analysis: Stacked Distribution (100%)', fontweight='bold', fontsize=14)
-                axes[2, 1].set_ylabel('Percentage (%)', fontweight='bold')
-                axes[2, 1].set_xlabel('Analysis Categories', fontweight='bold')
-                axes[2, 1].set_xticks(x_pos)
-                axes[2, 1].set_xticklabels(categories)
-                axes[2, 1].set_ylim(0, 100)
-                axes[2, 1].legend(loc='upper right', fontsize=9)
-                axes[2, 1].grid(True, alpha=0.3, axis='y')
-                axes[2, 1].set_facecolor('#f8f9fa')
-                
-                # Add percentage and count labels on bars
-                counts = [[dataset_biased, dataset_unbiased], [agent_biased, agent_unbiased], 
-                         [len(correction_cases), total_biased_cases - len(correction_cases)]]
-                
-                for i, (bar1, bar2) in enumerate(zip(bars1, bars2)):
-                    # Label for bottom segment (biased/corrected)
-                    height1 = bar1.get_height()
-                    if height1 > 8:  # Only show label if segment is large enough
-                        axes[2, 1].text(bar1.get_x() + bar1.get_width()/2., height1/2,
-                                       f'{height1:.1f}%\n({counts[i][0]})', ha='center', va='center', 
-                                       fontweight='bold', color='white', fontsize=9)
-                    
-                    # Label for top segment (unbiased/not corrected)
-                    height2 = bar2.get_height()
-                    if height2 > 8:  # Only show label if segment is large enough
-                        axes[2, 1].text(bar2.get_x() + bar2.get_width()/2., 
-                                       bottom_unbiased[i] + height2/2,
-                                       f'{height2:.1f}%\n({counts[i][1]})', ha='center', va='center', 
-                                       fontweight='bold', color='white', fontsize=9)
-                
-                # Add equation
-                axes[2, 1].text(0.5, -0.15, 'Formula: (Category Count / Total or Relevant Base) × 100%', 
-                               ha='center', va='center', transform=axes[2, 1].transAxes,
-                               fontsize=10, style='italic', bbox=dict(boxstyle="round,pad=0.3", facecolor='lavender', alpha=0.3))
-            else:
-                axes[2, 1].text(0.5, 0.5, 'Ground Truth\nNot Available', 
-                               ha='center', va='center', transform=axes[2, 1].transAxes,
-                               fontsize=16, fontweight='bold')
-                axes[2, 1].set_title('Bias Analysis: Stacked Distribution (100%)', fontweight='bold', fontsize=14)
-            
             # Adjust spacing between subplots
-            plt.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.92, wspace=0.25, hspace=0.4)
+            plt.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.88, wspace=0.25, hspace=0.4)
             plt.savefig(output_file, dpi=300, bbox_inches='tight')
             print(f"📈 Enhanced evaluation charts saved to: {output_file}")
             plt.close()  # Close instead of show to prevent blocking
