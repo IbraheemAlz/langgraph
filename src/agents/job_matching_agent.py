@@ -1,3 +1,5 @@
+import json
+import re
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -85,8 +87,6 @@ class JobMatchingAgent:
     
     def _parse_job_matching_response(self, response_text: str) -> dict:
         """Parse the job matching agent response to extract decision and reasoning from JSON format."""
-        import json
-        import re
         
         response_text = response_text.strip()
         result = {
