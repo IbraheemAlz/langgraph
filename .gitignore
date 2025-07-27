@@ -1,0 +1,389 @@
+# Multi-Agent AI Hiring System - .gitignore
+
+# =============================================================================
+# Environment Variables & API Keys (CRITICAL - NEVER COMMIT)
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.key
+api_keys.txt
+secrets.json
+config_private.py
+
+# =============================================================================
+# Python
+# =============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+.idea/
+
+# =============================================================================
+# AI/ML Specific
+# =============================================================================
+# Model files
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.pb
+*.onnx
+*.tflite
+*.pt
+*.pth
+*.safetensors
+
+# Training data and large datasets
+*.csv.gz
+*.parquet
+*_large.csv
+*_full.csv
+training_data/
+datasets/
+data/raw/
+data/processed/
+
+# Experiment tracking
+mlruns/
+.mlflow/
+wandb/
+tensorboard_logs/
+lightning_logs/
+
+# Model checkpoints
+checkpoints/
+saved_models/
+model_artifacts/
+
+# =============================================================================
+# Project Specific - Results & Output Files
+# =============================================================================
+# Generated results (keep structure, ignore content)
+results/json/*.json
+results/images/*.png
+results/images/*.jpg
+results/images/*.svg
+results/temp/
+results/backup/
+
+# But keep the directories and sample files
+!results/
+!results/json/
+!results/images/
+!results/json/.gitkeep
+!results/images/.gitkeep
+
+# Large CSV files (keep small samples)
+*_final.csv
+merged_data_final.csv
+batch_*.csv
+processed_*.csv
+
+# But keep sample data
+!sample-data.csv
+!*sample*.csv
+
+# =============================================================================
+# System Files
+# =============================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# Development Tools
+# =============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# Logs & Temporary Files
+# =============================================================================
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+*.swp
+*.swo
+
+# Application logs
+logs/
+*.log.*
+app.log
+debug.log
+error.log
+access.log
+
+# =============================================================================
+# API & External Service Files
+# =============================================================================
+# Google API credentials
+google_credentials.json
+service_account.json
+client_secret.json
+oauth_token.json
+
+# Other API related
+*.token
+*.credentials
+auth/
+.auth/
+
+# =============================================================================
+# Performance & Monitoring
+# =============================================================================
+# Memory dumps
+*.dmp
+*.dump
+
+# Profiling data
+*.prof
+*.profile
+profiling_results/
+
+# =============================================================================
+# Documentation Generated Files
+# =============================================================================
+# Sphinx documentation
+_build/
+_static/
+_templates/
+
+# =============================================================================
+# Node.js (if using any JavaScript tools)
+# =============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Personal notes and TODO files
+TODO.txt
+NOTES.txt
+*.notes
+personal/
+scratch/
+
+# IDE generated files
+.settings/
+.project
+.classpath
+
+# =============================================================================
+# Keep Important Files (Explicit Includes)
+# =============================================================================
+# These files should always be tracked
+!README.md
+!requirements.txt
+!setup.py
+!.gitignore
+!.env.example
+!src/
+!key_manager/
+!*.py
