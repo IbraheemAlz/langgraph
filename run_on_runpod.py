@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-RunPod deployment entry point for AI Hiring System
-Handles Ollama setup, model download, and application startup
+RunPod Application Launcher for AI Hiring System
+Starts Ollama service, downloads models, and launches the application
+Note: Run runpod_setup.sh first for initial environment setup
 """
 
 import os
@@ -145,28 +146,7 @@ def download_model():
         logger.error(f"❌ Error downloading model: {e}")
         return False
 
-def install_dependencies():
-    """Install Python dependencies"""
-    logger = logging.getLogger(__name__)
-    
-    logger.info("📦 Installing Python dependencies...")
-    
-    try:
-        # Install from requirements.txt
-        result = subprocess.run([
-            sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'
-        ], capture_output=True, text=True, timeout=300)
-        
-        if result.returncode == 0:
-            logger.info("✅ Dependencies installed successfully")
-            return True
-        else:
-            logger.error(f"❌ Dependency installation failed: {result.stderr}")
-            return False
-            
-    except Exception as e:
-        logger.error(f"❌ Error installing dependencies: {e}")
-        return False
+
 
 def start_application():
     """Start the FastAPI application"""
@@ -237,11 +217,6 @@ def main():
     
     # Change to workspace directory
     os.chdir('/workspace/langgraph')
-    
-    # Install dependencies
-    if not install_dependencies():
-        logger.error("❌ Failed to install dependencies")
-        return 1
     
     # Start Ollama
     if not start_ollama():

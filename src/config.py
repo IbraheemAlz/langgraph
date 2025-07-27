@@ -18,20 +18,27 @@ class Config:
     GEMINI_API_KEY: Optional[str] = None
     
     # === PERFORMANCE OPTIMIZATION ===
-    # Optimized for A100 GPU (40GB VRAM) and large datasets
-    MAX_WORKERS = int(os.getenv('MAX_WORKERS', 4))
-    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 3))  # Process 3 candidates simultaneously
-    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 2))
+    # Optimized for H100 GPU (94GB VRAM) - AGGRESSIVE SETTINGS
+    MAX_WORKERS = int(os.getenv('MAX_WORKERS', 12))  # H100 can handle more parallel work
+    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 10))    # Process 10 candidates simultaneously
+    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 6))  # More concurrent API calls
     
     # === MODEL PARAMETERS ===
-    MODEL_CONTEXT_LENGTH = 8192
-    TEMPERATURE = 0.1  # Slight randomness for varied responses
-    TOP_P = 0.9
-    MAX_TOKENS = 2048
+    MODEL_CONTEXT_LENGTH = 4096  # Optimized for H100 speed
+    TEMPERATURE = 0.01  # Very low for fast, deterministic responses
+    TOP_P = 0.7  # Optimized for speed
+    MAX_TOKENS = 512  # Reduced for faster generation
     
     # === TIMEOUT SETTINGS ===
-    REQUEST_TIMEOUT = 120  # 2 minutes for model inference
+    REQUEST_TIMEOUT = 30  # Aggressive timeout for H100 speed
     MODEL_LOAD_TIMEOUT = 300  # 5 minutes for model loading
+    
+    # === OLLAMA OPTIMIZATION FOR H100 ===
+    OLLAMA_NUM_GPU = 1  # Use single H100 GPU
+    OLLAMA_NUM_THREAD = 16  # Optimize CPU threads for H100
+    OLLAMA_BATCH_SIZE = 1024  # Large batch size for H100
+    OLLAMA_FLASH_ATTENTION = True  # Enable flash attention
+    OLLAMA_GPU_MEMORY_FRACTION = 0.9  # Use 90% of 94GB VRAM
     
     # === SYSTEM BEHAVIOR ===
     MAX_RE_EVALUATIONS = 2  # Maximum number of bias-triggered re-evaluations
@@ -45,6 +52,7 @@ class Config:
     # === RUNPOD SPECIFIC ===
     RUNPOD_POD_ID = os.getenv('RUNPOD_POD_ID', 'unknown')
     WORKSPACE_PATH = os.getenv('WORKSPACE_PATH', '/workspace')
+    GPU_TYPE = "H100"  # H100 PCIe optimization
     
     # === MONITORING ===
     ENABLE_METRICS = True
