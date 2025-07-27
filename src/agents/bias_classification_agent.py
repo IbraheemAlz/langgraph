@@ -1,46 +1,78 @@
 import json
 import re
-from dotenv import load_dotenv
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+import requests
+import logging
+from typing import Dict, Any
 from ..config import Config, PROMPTS
-from ..rate_limiter import rate_limited
-
-load_dotenv()
 
 class BiasClassificationAgent:
     """
-    Bias Classification Agent for the Multi-Agent AI Hiring System.
+    Bias Classification Agent for the Multi-Agent AI Hiring System - RunPod Optimized.
     
     This agent acts as an independent fairness auditor, evaluating whether
-    hiring decisions were influenced by non-merit factors.
+    hiring decisions were influenced by non-merit factors using local Ollama.
     """
     
     def __init__(self):
-        """Initialize the Bias Classification Agent with configured model and prompts."""
+        """Initialize the Bias Classification Agent with local Ollama."""
         if not Config.validate_environment():
-            raise ValueError("Missing required environment variables")
+            raise ValueError("Ollama service not available")
             
-        model_config = Config.get_model_config()
-        self.llm = ChatGoogleGenerativeAI(**model_config)
+        self.config = Config()
+        self.ollama_url = f"{self.config.OLLAMA_BASE_URL}/api/generate"
+        self.model_name = self.config.MODEL_NAME
+        self.logger = logging.getLogger(__name__)
         
-        self.prompt_template = ChatPromptTemplate.from_template(
-            PROMPTS["bias_classification"]
-        )
+        # Verify Ollama connection
+        self._verify_ollama_connection()
+    
+    def _verify_ollama_connection(self):
+        """Verify Ollama is running and model is available"""
+        try:
+            response = requests.get(f"{self.config.OLLAMA_BASE_URL}/api/version", timeout=10)
+            if response.status_code == 200:
+                self.logger.info("✅ Ollama connection verified")
+            else:
+                raise ConnectionError("Ollama not responding")
+        except Exception as e:
+            self.logger.error(f"❌ Ollama connection failed: {e}")
+            raise
+    
+    def _call_ollama(self, prompt: str) -> str:
+        """Make API call to local Ollama instance"""
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": self.config.TEMPERATURE,
+                "top_p": self.config.TOP_P,
+                "num_ctx": self.config.MODEL_CONTEXT_LENGTH
+            }
+        }
         
-        self.feedback_prompt_template = ChatPromptTemplate.from_template(
-            PROMPTS["bias_classification_feedback"]
-        )
-
-    @rate_limited
-    def _invoke_llm_chain(self, chain, params):
-        """Rate-limited LLM chain invocation."""
-        return chain.invoke(params)
+        try:
+            response = requests.post(
+                self.ollama_url,
+                json=payload,
+                timeout=self.config.REQUEST_TIMEOUT
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            return result.get('response', '').strip()
+            
+        except requests.exceptions.Timeout:
+            self.logger.error("Request timeout - model may be overloaded")
+            raise
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Ollama request failed: {e}")
+            raise
 
     def run(self, Resume: str, Job_Description: str, Transcript: str, decision: str, Role: str = "", 
             primary_reason: str = "", original_decision: str = "", previous_feedback: str = "") -> dict:
         """
-        Classify whether a hiring decision was biased or unbiased.
+        Classify whether a hiring decision was biased or unbiased using Ollama.
         
         Args:
             Resume: Candidate's resume text
@@ -60,37 +92,36 @@ class BiasClassificationAgent:
             is_re_evaluation = bool(original_decision and previous_feedback)
             
             if is_re_evaluation:
-                chain = self.feedback_prompt_template | self.llm
-                params = {
-                    "Resume": Resume,
-                    "Job_Description": Job_Description,
-                    "Transcript": Transcript,
-                    "Role": Role or "Not specified",
-                    "decision": decision,
-                    "primary_reason": primary_reason,
-                    "original_decision": original_decision,
-                    "previous_feedback": previous_feedback
-                }
+                prompt = PROMPTS["bias_classification_feedback"].format(
+                    Resume=Resume,
+                    Job_Description=Job_Description,
+                    Transcript=Transcript,
+                    Role=Role or "Not specified",
+                    decision=decision,
+                    primary_reason=primary_reason,
+                    original_decision=original_decision,
+                    previous_feedback=previous_feedback
+                )
             else:
-                chain = self.prompt_template | self.llm
-                params = {
-                    "Resume": Resume,
-                    "Job_Description": Job_Description,
-                    "Transcript": Transcript,
-                    "Role": Role or "Not specified",
-                    "decision": decision,
-                    "primary_reason": primary_reason
-                }
+                prompt = PROMPTS["bias_classification"].format(
+                    Resume=Resume,
+                    Job_Description=Job_Description,
+                    Transcript=Transcript,
+                    Role=Role or "Not specified",
+                    decision=decision,
+                    primary_reason=primary_reason
+                )
             
-            response = self._invoke_llm_chain(chain, params)
+            # Get response from Ollama
+            response = self._call_ollama(prompt)
             
             # Log the response for debugging (only if bias is detected)
-            result_preview = self._parse_bias_response(response.content)
+            result_preview = self._parse_bias_response(response)
             if result_preview.get("classification") == "biased":
                 evaluation_type = "RE-EVALUATION" if is_re_evaluation else "INITIAL"
                 print(f"🔍 BIAS AGENT {evaluation_type} REASONING:")
                 print("-" * 50)
-                print(response.content)
+                print(response)
                 print("-" * 50)
             
             return result_preview

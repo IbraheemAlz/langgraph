@@ -1,8 +1,28 @@
-langgraph
-langchain
-langchain-google-genai
-python-dotenv
-pandas
-numpy
-matplotlib
-seaborn
+# Core LangGraph and AI dependencies
+langgraph>=0.0.55
+langchain>=0.1.0
+
+# Data processing (essential for 10K+ records)
+pandas>=2.0.0
+numpy>=1.24.0
+
+# HTTP client for Ollama API
+requests>=2.31.0
+
+# Async processing for high-throughput batch processing
+aiohttp>=3.9.0
+asyncio-throttle>=1.0.0
+
+# Web framework for RunPod API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Visualization (keep minimal for results)
+plotly>=5.15.0
+kaleido>=0.2.1

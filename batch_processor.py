@@ -1,9 +1,20 @@
 """
-Batch Processor for Multi-Agent AI Hiring System
-===============================================
-Pure batch processing - takes a CSV batch, processes candidates, stores results in JSON.
-No visualization - just clean data processing and storage.
+DEPRECATED: Legacy Batch Processor 
+==================================
+⚠️  This file is DEPRECATED for RunPod deployment.
+⚠️  Use runpod_batch_processor.py for high-performance processing on RunPod.
+
+This legacy version is kept for local development and testing purposes only.
+For production workloads with 10K+ candidates, use the RunPod-optimized version.
 """
+
+import warnings
+warnings.warn(
+    "batch_processor.py is deprecated for RunPod deployment. "
+    "Use runpod_batch_processor.py for optimal performance with large datasets.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 import pandas as pd
 import json
@@ -16,8 +27,9 @@ import sys
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent / "src"))
 
+# NOTE: This imports old LangChain-based workflow
+# RunPod version uses direct Ollama API calls for better performance
 from src.main import create_hiring_workflow
-from src.rate_limiter import set_rate_limit
 
 # Configure logging
 logging.basicConfig(
@@ -308,9 +320,8 @@ def main():
         print("🗑️  Clear existing results mode enabled")
     
     try:
-        # Setup rate limiting
-        set_rate_limit(args.rate_limit)
-        print(f"⚡ Rate limiter set to {args.rate_limit} requests per minute")
+        # Note: Rate limiting not needed for legacy version
+        print(f"⚡ Processing with rate limit: {args.rate_limit} requests per minute (managed by workflow)")
         
         # Load dataset
         df = load_dataset(args.csv, args.max_rows)

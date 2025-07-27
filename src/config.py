@@ -1,43 +1,87 @@
 """
-Configuration settings for the Multi-Agent AI Hiring System.
+Configuration settings for the Multi-Agent AI Hiring System - RunPod Optimized.
 """
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 class Config:
-    """Configuration class for the hiring system."""
+    """RunPod-optimized configuration class for the hiring system."""
     
-    # Model Configuration
-    MODEL_NAME = "gemma-3-27b-it"  # Gemini 3 family model
-    MODEL_TEMPERATURE = 0  # Low temperature for consistency
+    # === OLLAMA CONFIGURATION ===
+    # Use local Ollama instead of Google API
+    OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+    MODEL_NAME = os.getenv('MODEL_NAME', 'gemma3:27b-instruct')
+    USE_LOCAL_MODEL = True
     
-    # System Behavior
+    # Remove API key dependency for local deployment
+    GEMINI_API_KEY: Optional[str] = None
+    
+    # === PERFORMANCE OPTIMIZATION ===
+    # Optimized for A100 GPU (40GB VRAM) and large datasets
+    MAX_WORKERS = int(os.getenv('MAX_WORKERS', 4))
+    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 3))  # Process 3 candidates simultaneously
+    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 2))
+    
+    # === MODEL PARAMETERS ===
+    MODEL_CONTEXT_LENGTH = 8192
+    TEMPERATURE = 0.1  # Slight randomness for varied responses
+    TOP_P = 0.9
+    MAX_TOKENS = 2048
+    
+    # === TIMEOUT SETTINGS ===
+    REQUEST_TIMEOUT = 120  # 2 minutes for model inference
+    MODEL_LOAD_TIMEOUT = 300  # 5 minutes for model loading
+    
+    # === SYSTEM BEHAVIOR ===
     MAX_RE_EVALUATIONS = 2  # Maximum number of bias-triggered re-evaluations
     DEFAULT_DECISION_ON_ERROR = "reject"  # Safety default
     DEFAULT_BIAS_ON_ERROR = "unbiased"  # Conservative default
     
+    # === FILE PATHS ===
+    DATA_FOLDER = "data"
+    RESULTS_FOLDER = "results"
+    
+    # === RUNPOD SPECIFIC ===
+    RUNPOD_POD_ID = os.getenv('RUNPOD_POD_ID', 'unknown')
+    WORKSPACE_PATH = os.getenv('WORKSPACE_PATH', '/workspace')
+    
+    # === MONITORING ===
+    ENABLE_METRICS = True
+    METRICS_INTERVAL = 30  # seconds
+    
+    # === LOGGING ===
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+    LOG_TO_FILE = True
+    LOG_FILE_PATH = f"{RESULTS_FOLDER}/runpod_deployment.log"
+    
     @classmethod
     def get_model_config(cls) -> Dict[str, Any]:
-        """Get model configuration for Google Gemini with single API key."""
+        """Get model configuration for local Ollama deployment."""
         return {
+            "base_url": cls.OLLAMA_BASE_URL,
             "model": cls.MODEL_NAME,
-            "temperature": cls.MODEL_TEMPERATURE,
-            "convert_system_message_to_human": False,
-            "google_api_key": os.getenv("GOOGLE_API_KEY")  # Single API key from environment
+            "temperature": cls.TEMPERATURE,
+            "top_p": cls.TOP_P,
+            "max_tokens": cls.MAX_TOKENS,
+            "timeout": cls.REQUEST_TIMEOUT
         }
     
     @classmethod
     def validate_environment(cls) -> bool:
-        """Validate that required environment variables are set."""
-        # Check for single API key
-        api_key = os.getenv("GOOGLE_API_KEY")
-        
-        if not api_key:
-            print("Missing required API key. Please set GOOGLE_API_KEY in your .env file.")
+        """Validate that Ollama environment is ready."""
+        try:
+            import requests
+            response = requests.get(f"{cls.OLLAMA_BASE_URL}/api/version", timeout=5)
+            if response.status_code == 200:
+                print("✅ Ollama connection verified")
+                return True
+            else:
+                print("❌ Ollama not responding")
+                return False
+        except Exception as e:
+            print(f"❌ Ollama connection failed: {e}")
             return False
-            
-        return True
 
 # Prompt Templates
 PROMPTS = {

@@ -1,44 +1,75 @@
 import json
 import re
-from dotenv import load_dotenv
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+import requests
+import logging
+from typing import Dict, Any
 from ..config import Config, PROMPTS
-from ..rate_limiter import rate_limited
-
-load_dotenv()
 
 class JobMatchingAgent:
     """
-    Job Matching Agent for the Multi-Agent AI Hiring System.
+    Job Matching Agent for the Multi-Agent AI Hiring System - RunPod Optimized.
     
     This agent acts as the primary hiring decision-maker, evaluating candidates
-    based solely on merit-based features like skills, experience, and job alignment.
+    using local Ollama model for high-performance processing.
     """
     
     def __init__(self):
-        """Initialize the Job Matching Agent with configured model and prompts."""
+        """Initialize the Job Matching Agent with local Ollama."""
         if not Config.validate_environment():
-            raise ValueError("Missing required environment variables")
+            raise ValueError("Ollama service not available")
             
-        model_config = Config.get_model_config()
-        self.llm = ChatGoogleGenerativeAI(**model_config)
+        self.config = Config()
+        self.ollama_url = f"{self.config.OLLAMA_BASE_URL}/api/generate"
+        self.model_name = self.config.MODEL_NAME
+        self.logger = logging.getLogger(__name__)
         
-        self.initial_prompt_template = ChatPromptTemplate.from_template(
-            PROMPTS["job_matching_initial"]
-        )
-        self.feedback_prompt_template = ChatPromptTemplate.from_template(
-            PROMPTS["job_matching_feedback"]
-        )
-
-    @rate_limited
-    def _invoke_llm_chain(self, chain, params):
-        """Rate-limited LLM chain invocation."""
-        return chain.invoke(params)
-
+        # Verify Ollama connection
+        self._verify_ollama_connection()
+    
+    def _verify_ollama_connection(self):
+        """Verify Ollama is running and model is available"""
+        try:
+            response = requests.get(f"{self.config.OLLAMA_BASE_URL}/api/version", timeout=10)
+            if response.status_code == 200:
+                self.logger.info("✅ Ollama connection verified")
+            else:
+                raise ConnectionError("Ollama not responding")
+        except Exception as e:
+            self.logger.error(f"❌ Ollama connection failed: {e}")
+            raise
+    
+    def _call_ollama(self, prompt: str) -> str:
+        """Make API call to local Ollama instance"""
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": self.config.TEMPERATURE,
+                "top_p": self.config.TOP_P,
+                "num_ctx": self.config.MODEL_CONTEXT_LENGTH
+            }
+        }
+        
+        try:
+            response = requests.post(
+                self.ollama_url,
+                json=payload,
+                timeout=self.config.REQUEST_TIMEOUT
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            return result.get('response', '').strip()
+            
+        except requests.exceptions.Timeout:
+            self.logger.error("Request timeout - model may be overloaded")
+            raise
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Ollama request failed: {e}")
     def run(self, Resume: str, Job_Description: str, Transcript: str, Role: str, feedback: str = None) -> dict:
         """
-        Make a hiring decision based on candidate information.
+        Make a hiring decision based on candidate information using Ollama.
         
         Args:
             Resume: Candidate's resume text
@@ -52,30 +83,31 @@ class JobMatchingAgent:
         """
         try:
             if feedback:
-                chain = self.feedback_prompt_template | self.llm
-                response = self._invoke_llm_chain(chain, {
-                    "Resume": Resume,
-                    "Job_Description": Job_Description,
-                    "Transcript": Transcript,
-                    "Role": Role,
-                    "feedback": feedback
-                })
+                prompt = PROMPTS["job_matching_feedback"].format(
+                    Resume=Resume,
+                    Job_Description=Job_Description,
+                    Transcript=Transcript,
+                    Role=Role,
+                    feedback=feedback
+                )
             else:
-                chain = self.initial_prompt_template | self.llm
-                response = self._invoke_llm_chain(chain, {
-                    "Resume": Resume,
-                    "Job_Description": Job_Description,
-                    "Transcript": Transcript,
-                    "Role": Role
-                })
+                prompt = PROMPTS["job_matching_initial"].format(
+                    Resume=Resume,
+                    Job_Description=Job_Description,
+                    Transcript=Transcript,
+                    Role=Role
+                )
+            
+            # Get response from Ollama
+            response = self._call_ollama(prompt)
             
             # Log the response for debugging
             print("🔍 AGENT REASONING:")
             print("-" * 50)
-            print(response.content)
+            print(response)
             print("-" * 50)
             
-            return self._parse_job_matching_response(response.content)
+            return self._parse_job_matching_response(response)
                 
         except Exception as e:
             print(f"❌ Error in job matching: {str(e)}")
