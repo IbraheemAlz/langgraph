@@ -195,6 +195,10 @@ model_artifacts/
 # =============================================================================
 # Project Specific - Results & Output Files
 # =============================================================================
+# Labeling data and intermediate files
+labeling/
+labeling/**
+
 # Generated results (keep structure, ignore content)
 results/json/*.json
 results/images/*.png
