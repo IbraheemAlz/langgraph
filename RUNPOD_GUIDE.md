@@ -2,14 +2,59 @@
 
 ## 🚀 Quick Setup
 
-### 1. Create RunPod Pod
+### Step 1: Create RunPod Pod
 
-- **GPU**: H100 PCIe (94GB VRAM)
-- **Template**: PyTorch 2.8.0
-- **Storage**: 100GB volume
-- **Ports**: 8000, 8888, 11434
+1. **Go to RunPod.io** and log in
+2. **Click "Pods" in the side menu**
+3. **Select GPU**: Choose **H100 PCIe** (94GB VRAM)
+4. **GPU Count**: Keep at **1**
+5. **Template**: Keep **"Runpod PyTorch 2.8.0"**
 
-### 2. Setup Environment
+### Step 2: Configure Pricing
+
+- **For Testing**: Select **"On-Demand"** (~$1.60/hr)
+- **For Production**: Select **"Spot"** (~$0.80/hr - 50% cheaper)
+
+### Step 3: Enable Required Options
+
+- ✅ **Keep "Start Jupyter Notebook" checked**
+- ⚠️ **Leave "SSH Terminal Access" unchecked** (we'll use Jupyter only)
+
+### Step 4: Edit Template Settings
+
+**Click "Edit Template" and configure:**
+
+- **Container Disk**: Change to **50 GB**
+- **Volume Disk**: Change to **100 GB**
+- **HTTP Ports**: Enter `8888,11434,8000`
+- **Volume Mount Path**: Keep `/workspace`
+- **Environment Variables**: Add these:
+  ```
+  OLLAMA_HOST=0.0.0.0
+  OLLAMA_PORT=11434
+  JUPYTER_ENABLE_LAB=yes
+  ```
+
+**Click "Set Overrides"**
+
+### Step 5: Deploy Pod
+
+- **Click "Deploy"**
+- **Wait 2-3 minutes** for pod to start
+
+---
+
+## 💻 Setup Your System (After Pod Starts)
+
+### Step 1: Connect to Your Pod
+
+1. **Click "Connect"** on your running pod
+2. **Choose "Connect to Jupyter Lab"**
+3. **Open a Terminal in Jupyter** (New → Terminal)
+
+### Step 2: Automated Setup (Recommended)
+
+**In the Jupyter Terminal:**
 
 ```bash
 cd /workspace
@@ -19,13 +64,13 @@ chmod +x runpod_setup.sh
 ./runpod_setup.sh
 ```
 
-### 3. Launch Application
+### Step 3: Launch Application
 
 ```bash
 python run_on_runpod.py
 ```
 
-### 4. Process Your Data
+### Step 4: Process Your Data
 
 ```bash
 python runpod_batch_processor.py --input your_data.csv
@@ -33,7 +78,37 @@ python runpod_batch_processor.py --input your_data.csv
 
 ---
 
-## 📁 File Structure
+## � Access Your System
+
+**After deployment, you can access:**
+
+- **AI Hiring System**: `http://[your-pod-ip]:8000`
+- **API Documentation**: `http://[your-pod-ip]:8000/docs`
+- **Health Check**: `http://[your-pod-ip]:8000/health`
+- **Metrics**: `http://[your-pod-ip]:8000/metrics`
+- **Jupyter Notebook**: `http://[your-pod-ip]:8888`
+- **Ollama API**: `http://[your-pod-ip]:11434`
+
+**Find your Pod IP:**
+
+- In RunPod dashboard, click on your pod
+- Copy the "TCP Port Mapping" IP address
+
+---
+
+## 📊 Expected Performance
+
+| Metric               | H100 PCIe Performance                    |
+| -------------------- | ---------------------------------------- |
+| **Processing Speed** | 1,200-1,800 candidates/hour              |
+| **Cost per Hour**    | $0.80 (Spot) / $1.60 (On-Demand)         |
+| **Startup Time**     | 10-15 minutes (including model download) |
+| **GPU Memory Usage** | ~50GB / 94GB available                   |
+| **Total Time (10K)** | 6-8 hours                                |
+
+---
+
+## �📁 File Structure
 
 ```
 /workspace/langgraph/
@@ -119,6 +194,14 @@ ollama serve &
 ollama pull gemma3:27b-instruct
 ```
 
+### If Ollama won't start
+
+```bash
+pkill ollama
+ollama serve &
+sleep 5
+```
+
 ### If Processing Fails
 
 ```bash
@@ -139,6 +222,40 @@ df -h
 ollama pull gemma3:27b-instruct
 ```
 
+### Check GPU Usage
+
+```bash
+nvidia-smi
+```
+
+---
+
+## 💡 Tips for Success
+
+1. **First Time Setup**: Allow 15-20 minutes for complete setup
+2. **Model Download**: Gemma 3 27B takes ~10 minutes on H100
+3. **Cost Optimization**: Use "Spot" instances for 50% savings
+4. **Storage**: 100GB volume ensures space for models and data
+5. **Performance**: H100 gives maximum speed for this workload
+6. **Jupyter Interface**: All commands run through Jupyter Lab terminal
+
+---
+
+## 🎯 Quick Commands Summary
+
+**Essential commands after pod starts (run in Jupyter Terminal):**
+
+```bash
+cd /workspace
+git clone -b runpod https://github.com/IbraheemAlz/langgraph.git
+cd langgraph
+chmod +x runpod_setup.sh
+./runpod_setup.sh
+python run_on_runpod.py
+```
+
+**🚀 That's it! Your H100-optimized AI Hiring System is now running for maximum performance!**
+
 ---
 
 ## ✅ Success Indicators
@@ -155,34 +272,3 @@ ollama pull gemma3:27b-instruct
 - Regular updates in `results/batch_processing.log`
 - JSON files appearing in `results/json/`
 - GPU: 80-90% utilization
-
----
-
-## 🎯 API Endpoints
-
-Once running, access at `http://[pod-ip]:8000`:
-
-- **API Documentation**: `/docs`
-- **Health Check**: `/health`
-- **Metrics**: `/metrics`
-- **Process Single Candidate**: `POST /process`
-- **Batch Processing Status**: `GET /status`
-
----
-
-## 💰 Performance & Cost
-
-### H100 PCIe Performance
-
-- **Processing**: 1,200-1,800 candidates/hour
-- **Total Time**: 6-8.5 hours for 10,175 candidates
-- **Cost**: ~$10-14 total (spot pricing)
-- **Speedup**: 3-4X faster than A100
-
-### Expected Results
-
-Your AI system will complete 10K+ candidate evaluations in under 8 hours with comprehensive bias detection and job matching analysis.
-
----
-
-**🎉 Your H100-optimized AI Hiring System is ready for production use!**

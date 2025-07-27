@@ -22,7 +22,3 @@ python-dotenv>=1.0.0
 
 # System monitoring
 psutil>=5.9.0
-
-# Visualization (keep minimal for results)
-plotly>=5.15.0
-kaleido>=0.2.1

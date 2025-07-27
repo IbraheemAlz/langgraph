@@ -39,11 +39,11 @@ def test_model_availability():
             available_models = [model['name'] for model in models.get('models', [])]
             print(f"📋 Available models: {available_models}")
             
-            if 'gemma2:27b' in available_models:
-                print("✅ Gemma 2 27B model is available")
+            if 'gemma3:27b-instruct' in available_models:
+                print("✅ Gemma 3 27B Instruct model is available")
                 return True
             else:
-                print("⚠️ Gemma 2 27B model not found. Available models:", available_models)
+                print("⚠️ Gemma 3 27B Instruct model not found. Available models:", available_models)
                 return False
         else:
             print(f"❌ Failed to get model list: {response.status_code}")
@@ -57,7 +57,7 @@ def test_model_inference():
     print("🔍 Testing model inference...")
     try:
         payload = {
-            "model": "gemma2:27b",
+            "model": "gemma3:27b-instruct",
             "prompt": "Hello, please respond with 'AI system ready' if you can understand this message.",
             "stream": False,
             "options": {

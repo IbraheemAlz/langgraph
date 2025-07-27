@@ -39,7 +39,7 @@ class JobMatchingAgent:
             raise
     
     def _call_ollama(self, prompt: str) -> str:
-        """Make API call to local Ollama instance"""
+        """Make API call to local Ollama instance with H100 optimizations"""
         payload = {
             "model": self.model_name,
             "prompt": prompt,
@@ -47,7 +47,13 @@ class JobMatchingAgent:
             "options": {
                 "temperature": self.config.TEMPERATURE,
                 "top_p": self.config.TOP_P,
-                "num_ctx": self.config.MODEL_CONTEXT_LENGTH
+                "num_ctx": self.config.MODEL_CONTEXT_LENGTH,
+                "num_batch": self.config.OLLAMA_BATCH_SIZE,  # H100 batch optimization
+                "num_gpu": self.config.OLLAMA_NUM_GPU,       # Single H100 GPU
+                "num_thread": self.config.OLLAMA_NUM_THREAD, # CPU thread optimization
+                "use_mlock": True,                           # Lock memory for performance
+                "use_mmap": True,                            # Memory mapping for speed
+                "numa": False                                # Disable NUMA for single GPU
             }
         }
         
@@ -101,16 +107,17 @@ class JobMatchingAgent:
             # Get response from Ollama
             response = self._call_ollama(prompt)
             
-            # Log the response for debugging
-            print("🔍 AGENT REASONING:")
-            print("-" * 50)
-            print(response)
-            print("-" * 50)
+            # Log response for debugging (only in development mode)
+            if self.config.LOG_LEVEL == "DEBUG":
+                self.logger.debug("🔍 AGENT REASONING:")
+                self.logger.debug("-" * 50)
+                self.logger.debug(response)
+                self.logger.debug("-" * 50)
             
             return self._parse_job_matching_response(response)
                 
         except Exception as e:
-            print(f"❌ Error in job matching: {str(e)}")
+            self.logger.error(f"❌ Error in job matching: {str(e)}")
             # Default to reject in case of error for safety
             return {
                 "decision": Config.DEFAULT_DECISION_ON_ERROR,

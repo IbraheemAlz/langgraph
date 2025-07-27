@@ -39,7 +39,7 @@ class BiasClassificationAgent:
             raise
     
     def _call_ollama(self, prompt: str) -> str:
-        """Make API call to local Ollama instance"""
+        """Make API call to local Ollama instance with H100 optimizations"""
         payload = {
             "model": self.model_name,
             "prompt": prompt,
@@ -47,7 +47,13 @@ class BiasClassificationAgent:
             "options": {
                 "temperature": self.config.TEMPERATURE,
                 "top_p": self.config.TOP_P,
-                "num_ctx": self.config.MODEL_CONTEXT_LENGTH
+                "num_ctx": self.config.MODEL_CONTEXT_LENGTH,
+                "num_batch": self.config.OLLAMA_BATCH_SIZE,  # H100 batch optimization
+                "num_gpu": self.config.OLLAMA_NUM_GPU,       # Single H100 GPU
+                "num_thread": self.config.OLLAMA_NUM_THREAD, # CPU thread optimization
+                "use_mlock": True,                           # Lock memory for performance
+                "use_mmap": True,                            # Memory mapping for speed
+                "numa": False                                # Disable NUMA for single GPU
             }
         }
         
@@ -127,7 +133,7 @@ class BiasClassificationAgent:
             return result_preview
                 
         except Exception as e:
-            print(f"❌ Error in bias classification: {str(e)}")
+            self.logger.error(f"❌ Error in bias classification: {str(e)}")
             # Default to unbiased in case of error to avoid false positives
             return {
                 "classification": Config.DEFAULT_BIAS_ON_ERROR,

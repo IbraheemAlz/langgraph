@@ -51,12 +51,16 @@ def start_ollama():
     logger.info("🚀 Starting Ollama service...")
     
     try:
-        # Start Ollama in background
+        # Start Ollama in background with H100 optimizations
         env = dict(os.environ)
         env.update({
             "OLLAMA_HOST": "0.0.0.0",
             "OLLAMA_PORT": "11434",
-            "OLLAMA_ORIGINS": "*"
+            "OLLAMA_ORIGINS": "*",
+            "OLLAMA_NUM_PARALLEL": "12",        # H100 parallel processing
+            "OLLAMA_MAX_LOADED_MODELS": "1",   # Load single model efficiently
+            "OLLAMA_FLASH_ATTENTION": "1",     # Enable flash attention for H100
+            "CUDA_VISIBLE_DEVICES": "0"       # Use single H100 GPU
         })
         
         process = subprocess.Popen(

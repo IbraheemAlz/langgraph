@@ -14,7 +14,7 @@ cd /workspace || exit 1
 # Clone repository if not exists
 if [ ! -d "langgraph" ]; then
     echo "📥 Cloning repository..."
-    git clone https://github.com/IbraheemAlz/langgraph.git || {
+    git clone -b runpod https://github.com/IbraheemAlz/langgraph.git || {
         echo "❌ Failed to clone repository"
         exit 1
     }
