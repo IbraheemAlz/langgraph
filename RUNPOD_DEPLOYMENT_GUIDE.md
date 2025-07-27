@@ -51,12 +51,14 @@ This guide provides comprehensive instructions for deploying your LangGraph-base
 ### Option 1: Serverless Endpoints (Recommended for Variable Workloads)
 
 **Advantages:**
+
 - Pay-per-use pricing
 - Auto-scaling
 - No management overhead
 - Cold start optimization
 
 **Best For:**
+
 - Batch processing jobs
 - Variable demand
 - Cost-conscious deployments
@@ -64,12 +66,14 @@ This guide provides comprehensive instructions for deploying your LangGraph-base
 ### Option 2: Community Cloud (Recommended for Consistent Workloads)
 
 **Advantages:**
+
 - Persistent instances
 - Better cost for continuous use
 - Full control over environment
 - No cold starts
 
 **Best For:**
+
 - 24/7 availability requirements
 - High-volume processing
 - Development and testing
@@ -77,12 +81,14 @@ This guide provides comprehensive instructions for deploying your LangGraph-base
 ### Option 3: Secure Cloud (Enterprise)
 
 **Advantages:**
+
 - Enhanced security
 - Compliance features
 - Dedicated infrastructure
 - SLA guarantees
 
 **Best For:**
+
 - Enterprise deployments
 - Sensitive data processing
 - Compliance requirements
@@ -99,6 +105,7 @@ ollama pull gemma3:27b-instruct
 ```
 
 **Benefits:**
+
 - No API rate limits
 - Reduced latency
 - Lower operational costs
@@ -106,16 +113,17 @@ ollama pull gemma3:27b-instruct
 
 ### Memory Requirements
 
-| Model Variant | VRAM Needed | Recommended GPU |
-|---------------|-------------|-----------------|
-| Gemma 3 7B    | 8GB+       | RTX 4070, RTX 4080 |
-| Gemma 3 27B   | 24GB+      | RTX 4090, A100 |
+| Model Variant | VRAM Needed | Recommended GPU    |
+| ------------- | ----------- | ------------------ |
+| Gemma 3 7B    | 8GB+        | RTX 4070, RTX 4080 |
+| Gemma 3 27B   | 24GB+       | RTX 4090, A100     |
 
 ## Step-by-Step Deployment
 
 ### Step 1: Pod Configuration
 
 1. **Create New Pod**
+
    ```
    Template: PyTorch 2.1 + Python 3.10
    GPU: RTX 4090 (24GB VRAM) or A100
@@ -226,14 +234,14 @@ class Config:
     # Use local Ollama instead of API
     OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
     MODEL_NAME = "gemma3:27b-instruct"
-    
+
     # Remove API key requirement for local deployment
     USE_LOCAL_MODEL = True
-    
+
     # Optimization settings
     MAX_WORKERS = 4  # Adjust based on GPU memory
     BATCH_SIZE = 2   # Process 2 candidates simultaneously
-    
+
     # Performance tuning
     MODEL_CONTEXT_LENGTH = 8192
     TEMPERATURE = 0.1
@@ -245,6 +253,7 @@ class Config:
 ### GPU Memory Management
 
 1. **Model Quantization**
+
    ```bash
    # Use quantized versions for better performance
    ollama pull gemma3:27b-instruct-q4_K_M
@@ -273,13 +282,13 @@ class RunpodBatchProcessor:
     def __init__(self, max_workers=4):
         self.max_workers = max_workers
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
-    
+
     async def process_candidates_parallel(self, candidates):
         tasks = []
         for candidate in candidates:
             task = asyncio.create_task(self.process_single_candidate(candidate))
             tasks.append(task)
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
         return results
 ```
@@ -287,6 +296,7 @@ class RunpodBatchProcessor:
 ### Storage Optimization
 
 1. **Model Caching**
+
    ```bash
    # Persistent volume for model storage
    docker volume create ollama-models
@@ -312,11 +322,11 @@ import runpod
 def handler(event):
     """Serverless handler for batch processing"""
     candidates = event.get('candidates', [])
-    
+
     # Process candidates
     processor = BatchProcessor()
     results = processor.process_batch(candidates)
-    
+
     return {
         "statusCode": 200,
         "body": results
@@ -378,11 +388,11 @@ while True:
     if not check_ollama_health():
         print("Ollama service down, restarting...")
         # Restart logic here
-    
+
     if not check_app_health():
         print("Application down, restarting...")
         # Restart logic here
-    
+
     time.sleep(60)
 ```
 
@@ -397,13 +407,13 @@ def get_system_metrics():
     # CPU and Memory
     cpu_percent = psutil.cpu_percent()
     memory = psutil.virtual_memory()
-    
+
     # GPU metrics
     nvidia_ml.nvmlInit()
     handle = nvidia_ml.nvmlDeviceGetHandleByIndex(0)
     gpu_util = nvidia_ml.nvmlDeviceGetUtilizationRates(handle)
     gpu_memory = nvidia_ml.nvmlDeviceGetMemoryInfo(handle)
-    
+
     return {
         'cpu_percent': cpu_percent,
         'memory_percent': memory.percent,
@@ -415,6 +425,7 @@ def get_system_metrics():
 ## Security Best Practices
 
 1. **Environment Variables**
+
    ```bash
    # Store sensitive data in Runpod secrets
    export GEMINI_API_KEY="your-backup-api-key"
@@ -422,10 +433,11 @@ def get_system_metrics():
    ```
 
 2. **Network Security**
+
    ```python
    # Restrict API access
    ALLOWED_IPS = ['your.client.ip.address']
-   
+
    @app.middleware("http")
    async def ip_whitelist(request: Request, call_next):
        client_ip = request.client.host
@@ -442,20 +454,22 @@ def get_system_metrics():
 ### Common Issues and Solutions
 
 1. **GPU Memory Issues**
+
    ```bash
    # Check GPU memory usage
    nvidia-smi
-   
+
    # Clear GPU cache
    docker exec -it ollama ollama stop gemma3:27b-instruct
    docker restart ollama
    ```
 
 2. **Model Loading Failures**
+
    ```bash
    # Verify model integrity
    docker exec -it ollama ollama show gemma3:27b-instruct
-   
+
    # Re-download if corrupted
    docker exec -it ollama ollama rm gemma3:27b-instruct
    docker exec -it ollama ollama pull gemma3:27b-instruct
@@ -488,11 +502,11 @@ def get_system_metrics():
 
 ### Throughput Expectations
 
-| GPU Type | Model Size | Candidates/Hour | Cost/Hour |
-|----------|------------|-----------------|-----------|
-| RTX 4090 | Gemma 3 27B | 200-300 | $0.50-0.70 |
-| A100     | Gemma 3 27B | 400-600 | $1.20-1.50 |
-| RTX 4080 | Gemma 3 7B  | 300-400 | $0.40-0.60 |
+| GPU Type | Model Size  | Candidates/Hour | Cost/Hour  |
+| -------- | ----------- | --------------- | ---------- |
+| RTX 4090 | Gemma 3 27B | 200-300         | $0.50-0.70 |
+| A100     | Gemma 3 27B | 400-600         | $1.20-1.50 |
+| RTX 4080 | Gemma 3 7B  | 300-400         | $0.40-0.60 |
 
 ### Quality Metrics
 

@@ -27,44 +27,44 @@ from typing import Optional
 
 class Config:
     """RunPod-optimized configuration for Multi-Agent AI Hiring System"""
-    
+
     # === OLLAMA CONFIGURATION ===
     # Use local Ollama instead of Google API
     OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
     MODEL_NAME = os.getenv('MODEL_NAME', 'gemma3:27b-instruct')
     USE_LOCAL_MODEL = True
-    
+
     # Remove API key dependency for local deployment
     GEMINI_API_KEY: Optional[str] = None
-    
+
     # === PERFORMANCE OPTIMIZATION ===
     # Optimized for A100 GPU (40GB VRAM)
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 4))
     BATCH_SIZE = int(os.getenv('BATCH_SIZE', 3))  # Process 3 candidates simultaneously
     CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 2))
-    
+
     # === MODEL PARAMETERS ===
     MODEL_CONTEXT_LENGTH = 8192
     TEMPERATURE = 0.1
     TOP_P = 0.9
     MAX_TOKENS = 2048
-    
+
     # === TIMEOUT SETTINGS ===
     REQUEST_TIMEOUT = 120  # 2 minutes for model inference
     MODEL_LOAD_TIMEOUT = 300  # 5 minutes for model loading
-    
+
     # === FILE PATHS ===
     DATA_FOLDER = "data"
     RESULTS_FOLDER = "results"
-    
+
     # === RUNPOD SPECIFIC ===
     RUNPOD_POD_ID = os.getenv('RUNPOD_POD_ID', 'unknown')
     WORKSPACE_PATH = os.getenv('WORKSPACE_PATH', '/workspace')
-    
+
     # === MONITORING ===
     ENABLE_METRICS = True
     METRICS_INTERVAL = 30  # seconds
-    
+
     # === LOGGING ===
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     LOG_TO_FILE = True
@@ -96,10 +96,10 @@ class JobMatchingAgent:
         self.ollama_url = f"{config.OLLAMA_BASE_URL}/api/generate"
         self.model_name = config.MODEL_NAME
         self.logger = logging.getLogger(__name__)
-        
+
         # Verify Ollama connection
         self._verify_ollama_connection()
-    
+
     def _verify_ollama_connection(self):
         """Verify Ollama is running and model is available"""
         try:
@@ -111,7 +111,7 @@ class JobMatchingAgent:
         except Exception as e:
             self.logger.error(f"❌ Ollama connection failed: {e}")
             raise
-    
+
     def _call_ollama(self, prompt: str) -> str:
         """Make API call to local Ollama instance"""
         payload = {
@@ -124,7 +124,7 @@ class JobMatchingAgent:
                 "num_ctx": self.config.MODEL_CONTEXT_LENGTH
             }
         }
-        
+
         try:
             response = requests.post(
                 self.ollama_url,
@@ -132,35 +132,35 @@ class JobMatchingAgent:
                 timeout=self.config.REQUEST_TIMEOUT
             )
             response.raise_for_status()
-            
+
             result = response.json()
             return result.get('response', '').strip()
-            
+
         except requests.exceptions.Timeout:
             self.logger.error("Request timeout - model may be overloaded")
             raise
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Ollama request failed: {e}")
             raise
-    
+
     def analyze_job_match(self, candidate_data: Dict[str, Any], job_requirements: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze job match using local Ollama model"""
-        
+
         prompt = f"""
         As an expert HR analyst, evaluate the job match between this candidate and position.
-        
+
         CANDIDATE PROFILE:
         Skills: {candidate_data.get('skills', 'Not specified')}
         Experience: {candidate_data.get('experience', 'Not specified')}
         Education: {candidate_data.get('education', 'Not specified')}
         Previous Roles: {candidate_data.get('previous_roles', 'Not specified')}
-        
+
         JOB REQUIREMENTS:
         Required Skills: {job_requirements.get('required_skills', 'Not specified')}
         Experience Level: {job_requirements.get('experience_level', 'Not specified')}
         Education Requirements: {job_requirements.get('education_requirements', 'Not specified')}
         Job Title: {job_requirements.get('title', 'Not specified')}
-        
+
         Provide a detailed analysis with:
         1. Overall Match Score (0-100)
         2. Skills Alignment Score (0-100)
@@ -168,7 +168,7 @@ class JobMatchingAgent:
         4. Missing Skills/Qualifications
         5. Strengths of this candidate
         6. Recommendation (Strong Match/Good Match/Weak Match/No Match)
-        
+
         Format as JSON:
         {{
             "overall_score": number,
@@ -180,7 +180,7 @@ class JobMatchingAgent:
             "detailed_analysis": "detailed_explanation"
         }}
         """
-        
+
         try:
             response = self._call_ollama(prompt)
             # Parse JSON response
@@ -230,10 +230,10 @@ class BiasClassificationAgent:
         self.ollama_url = f"{config.OLLAMA_BASE_URL}/api/generate"
         self.model_name = config.MODEL_NAME
         self.logger = logging.getLogger(__name__)
-        
+
         # Verify Ollama connection
         self._verify_ollama_connection()
-    
+
     def _verify_ollama_connection(self):
         """Verify Ollama is running and model is available"""
         try:
@@ -245,7 +245,7 @@ class BiasClassificationAgent:
         except Exception as e:
             self.logger.error(f"❌ Ollama connection failed: {e}")
             raise
-    
+
     def _call_ollama(self, prompt: str) -> str:
         """Make API call to local Ollama instance"""
         payload = {
@@ -258,7 +258,7 @@ class BiasClassificationAgent:
                 "num_ctx": self.config.MODEL_CONTEXT_LENGTH
             }
         }
-        
+
         try:
             response = requests.post(
                 self.ollama_url,
@@ -266,40 +266,40 @@ class BiasClassificationAgent:
                 timeout=self.config.REQUEST_TIMEOUT
             )
             response.raise_for_status()
-            
+
             result = response.json()
             return result.get('response', '').strip()
-            
+
         except requests.exceptions.Timeout:
             self.logger.error("Request timeout - model may be overloaded")
             raise
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Ollama request failed: {e}")
             raise
-    
+
     def analyze_bias(self, candidate_data: Dict[str, Any], evaluation_notes: str = "") -> Dict[str, Any]:
         """Analyze potential bias in candidate evaluation"""
-        
+
         prompt = f"""
         As an expert in fair hiring practices, analyze this candidate evaluation for potential bias.
-        
+
         CANDIDATE DATA:
         Name: {candidate_data.get('name', 'Not provided')}
         Background: {candidate_data.get('background', 'Not provided')}
         Education: {candidate_data.get('education', 'Not provided')}
         Experience: {candidate_data.get('experience', 'Not provided')}
-        
+
         EVALUATION NOTES:
         {evaluation_notes}
-        
+
         Analyze for these bias types:
         1. Gender bias
-        2. Age bias  
+        2. Age bias
         3. Educational institution bias
         4. Name/ethnicity bias
         5. Experience level bias
         6. Career gap bias
-        
+
         Provide analysis as JSON:
         {{
             "bias_detected": boolean,
@@ -310,7 +310,7 @@ class BiasClassificationAgent:
             "overall_assessment": "assessment_text"
         }}
         """
-        
+
         try:
             response = self._call_ollama(prompt)
             # Parse JSON response
@@ -394,22 +394,22 @@ bias_agent = None
 async def startup_event():
     """Initialize agents on startup"""
     global job_agent, bias_agent
-    
+
     logger.info("🚀 Starting AI Hiring System on RunPod")
     logger.info(f"📍 Pod ID: {config.RUNPOD_POD_ID}")
     logger.info(f"🤖 Model: {config.MODEL_NAME}")
     logger.info(f"💾 Workspace: {config.WORKSPACE_PATH}")
-    
+
     try:
         # Wait for Ollama to be ready
         await wait_for_ollama()
-        
+
         # Initialize agents
         job_agent = JobMatchingAgent()
         bias_agent = BiasClassificationAgent()
-        
+
         logger.info("✅ All agents initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}")
         raise
@@ -417,7 +417,7 @@ async def startup_event():
 async def wait_for_ollama(max_attempts=30):
     """Wait for Ollama to be ready"""
     import requests
-    
+
     for attempt in range(max_attempts):
         try:
             response = requests.get(f"{config.OLLAMA_BASE_URL}/api/version", timeout=5)
@@ -426,10 +426,10 @@ async def wait_for_ollama(max_attempts=30):
                 return
         except:
             pass
-        
+
         logger.info(f"⏳ Waiting for Ollama... (attempt {attempt + 1}/{max_attempts})")
         await asyncio.sleep(2)
-    
+
     raise Exception("Ollama not available after waiting")
 
 @app.get("/")
@@ -449,7 +449,7 @@ async def health_check():
     try:
         import requests
         ollama_status = requests.get(f"{config.OLLAMA_BASE_URL}/api/version", timeout=5)
-        
+
         return {
             "status": "healthy",
             "ollama_status": "connected" if ollama_status.status_code == 200 else "disconnected",
@@ -469,18 +469,18 @@ async def analyze_candidate(candidate_data: Dict[str, Any], job_requirements: Di
     try:
         # Job matching analysis
         job_analysis = job_agent.analyze_job_match(candidate_data, job_requirements)
-        
+
         # Bias analysis
         evaluation_notes = job_analysis.get('detailed_analysis', '')
         bias_analysis = bias_agent.analyze_bias(candidate_data, evaluation_notes)
-        
+
         return {
             "candidate_id": candidate_data.get('id', 'unknown'),
             "job_match": job_analysis,
             "bias_analysis": bias_analysis,
             "timestamp": time.time()
         }
-        
+
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -493,13 +493,13 @@ async def batch_analyze(candidates: List[Dict[str, Any]], job_requirements: Dict
         for candidate in candidates:
             task = analyze_single_candidate_async(candidate, job_requirements)
             tasks.append(task)
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Filter out exceptions
         successful_results = [r for r in results if not isinstance(r, Exception)]
         failed_count = len(results) - len(successful_results)
-        
+
         return {
             "total_candidates": len(candidates),
             "successful_analyses": len(successful_results),
@@ -507,7 +507,7 @@ async def batch_analyze(candidates: List[Dict[str, Any]], job_requirements: Dict
             "results": successful_results,
             "timestamp": time.time()
         }
-        
+
     except Exception as e:
         logger.error(f"Batch analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -515,15 +515,15 @@ async def batch_analyze(candidates: List[Dict[str, Any]], job_requirements: Dict
 async def analyze_single_candidate_async(candidate_data: Dict[str, Any], job_requirements: Dict[str, Any]):
     """Async wrapper for candidate analysis"""
     loop = asyncio.get_event_loop()
-    
+
     # Run in thread pool to avoid blocking
     job_analysis = await loop.run_in_executor(
-        None, 
-        job_agent.analyze_job_match, 
-        candidate_data, 
+        None,
+        job_agent.analyze_job_match,
+        candidate_data,
         job_requirements
     )
-    
+
     evaluation_notes = job_analysis.get('detailed_analysis', '')
     bias_analysis = await loop.run_in_executor(
         None,
@@ -531,7 +531,7 @@ async def analyze_single_candidate_async(candidate_data: Dict[str, Any], job_req
         candidate_data,
         evaluation_notes
     )
-    
+
     return {
         "candidate_id": candidate_data.get('id', 'unknown'),
         "job_match": job_analysis,
@@ -576,54 +576,54 @@ from config import config
 
 class RunPodBatchProcessor:
     """Optimized batch processor for RunPod deployment"""
-    
+
     def __init__(self):
         self.api_url = "http://localhost:8000"
         self.logger = logging.getLogger(__name__)
         self.concurrent_limit = config.CONCURRENT_REQUESTS
-        
+
     async def process_batch_file(self, input_file: str, job_requirements: Dict[str, Any], output_file: str = None):
         """Process a CSV file of candidates"""
-        
+
         # Read input file
         df = pd.read_csv(input_file)
         candidates = df.to_dict('records')
-        
+
         self.logger.info(f"🚀 Starting batch processing of {len(candidates)} candidates")
         self.logger.info(f"⚡ Using {self.concurrent_limit} concurrent requests")
-        
+
         start_time = time.time()
-        
+
         # Process in batches to manage memory
         batch_size = config.BATCH_SIZE
         all_results = []
-        
+
         for i in range(0, len(candidates), batch_size):
             batch = candidates[i:i + batch_size]
             batch_num = (i // batch_size) + 1
             total_batches = (len(candidates) + batch_size - 1) // batch_size
-            
+
             self.logger.info(f"📊 Processing batch {batch_num}/{total_batches} ({len(batch)} candidates)")
-            
+
             batch_results = await self._process_batch_async(batch, job_requirements)
             all_results.extend(batch_results)
-            
+
             # Progress update
             processed = len(all_results)
             elapsed = time.time() - start_time
             rate = processed / elapsed if elapsed > 0 else 0
             eta = (len(candidates) - processed) / rate if rate > 0 else 0
-            
+
             self.logger.info(f"✅ Batch {batch_num} complete. Progress: {processed}/{len(candidates)} ({rate:.1f} candidates/sec, ETA: {eta:.0f}s)")
-        
+
         # Save results
         if output_file is None:
             timestamp = int(time.time())
             output_file = f"{config.RESULTS_FOLDER}/json/batch_results_{timestamp}.json"
-        
+
         # Ensure output directory exists
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(output_file, 'w') as f:
             json.dump({
                 "metadata": {
@@ -636,27 +636,27 @@ class RunPodBatchProcessor:
                 },
                 "results": all_results
             }, f, indent=2)
-        
+
         total_time = time.time() - start_time
         self.logger.info(f"🎉 Batch processing complete!")
         self.logger.info(f"📊 Total time: {total_time:.1f}s")
         self.logger.info(f"⚡ Average rate: {len(candidates) / total_time:.1f} candidates/sec")
         self.logger.info(f"💾 Results saved to: {output_file}")
-        
+
         return output_file
-    
+
     async def _process_batch_async(self, candidates: List[Dict[str, Any]], job_requirements: Dict[str, Any]):
         """Process a batch of candidates asynchronously"""
-        
+
         semaphore = asyncio.Semaphore(self.concurrent_limit)
-        
+
         async def process_single(candidate):
             async with semaphore:
                 return await self._analyze_candidate_api(candidate, job_requirements)
-        
+
         tasks = [process_single(candidate) for candidate in candidates]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Handle exceptions
         successful_results = []
         for i, result in enumerate(results):
@@ -671,12 +671,12 @@ class RunPodBatchProcessor:
                 })
             else:
                 successful_results.append(result)
-        
+
         return successful_results
-    
+
     async def _analyze_candidate_api(self, candidate: Dict[str, Any], job_requirements: Dict[str, Any]):
         """Make API call to analyze single candidate"""
-        
+
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.post(
@@ -692,7 +692,7 @@ class RunPodBatchProcessor:
                     else:
                         error_text = await response.text()
                         raise Exception(f"API error {response.status}: {error_text}")
-                        
+
             except asyncio.TimeoutError:
                 raise Exception("Request timeout")
             except Exception as e:
@@ -701,16 +701,16 @@ class RunPodBatchProcessor:
 # CLI interface
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="RunPod Batch Processor")
     parser.add_argument("--input", required=True, help="Input CSV file")
     parser.add_argument("--output", help="Output JSON file (optional)")
     parser.add_argument("--job-title", default="Software Engineer", help="Job title")
     parser.add_argument("--required-skills", default="Python,JavaScript", help="Required skills (comma-separated)")
     parser.add_argument("--experience-level", default="Mid-level", help="Experience level")
-    
+
     args = parser.parse_args()
-    
+
     # Create job requirements
     job_requirements = {
         "title": args.job_title,
@@ -718,10 +718,10 @@ if __name__ == "__main__":
         "experience_level": args.experience_level,
         "education_requirements": "Bachelor's degree preferred"
     }
-    
+
     # Run batch processor
     processor = RunPodBatchProcessor()
-    
+
     async def main():
         result_file = await processor.process_batch_file(
             args.input,
@@ -729,7 +729,7 @@ if __name__ == "__main__":
             args.output
         )
         print(f"Results saved to: {result_file}")
-    
+
     asyncio.run(main())
 ```
 
@@ -773,7 +773,7 @@ def setup_logging():
 def check_ollama_service():
     """Check if Ollama service is running"""
     logger = logging.getLogger(__name__)
-    
+
     try:
         import requests
         response = requests.get('http://localhost:11434/api/version', timeout=5)
@@ -782,19 +782,19 @@ def check_ollama_service():
             return True
     except:
         pass
-    
+
     logger.warning("⚠️ Ollama service not detected")
     return False
 
 def start_ollama():
     """Start Ollama service if not running"""
     logger = logging.getLogger(__name__)
-    
+
     if check_ollama_service():
         return True
-    
+
     logger.info("🚀 Starting Ollama service...")
-    
+
     try:
         # Start Ollama in background
         process = subprocess.Popen(
@@ -803,7 +803,7 @@ def start_ollama():
             stderr=subprocess.PIPE,
             env=dict(os.environ, OLLAMA_HOST="0.0.0.0", OLLAMA_PORT="11434")
         )
-        
+
         # Wait for service to start
         for i in range(30):
             time.sleep(1)
@@ -811,10 +811,10 @@ def start_ollama():
                 logger.info("✅ Ollama service started successfully")
                 return True
             logger.info(f"⏳ Waiting for Ollama to start... ({i+1}/30)")
-        
+
         logger.error("❌ Failed to start Ollama service")
         return False
-        
+
     except Exception as e:
         logger.error(f"❌ Error starting Ollama: {e}")
         return False
@@ -822,7 +822,7 @@ def start_ollama():
 def check_model():
     """Check if Gemma model is available"""
     logger = logging.getLogger(__name__)
-    
+
     try:
         result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
         if 'gemma3:27b-instruct' in result.stdout:
@@ -838,12 +838,12 @@ def check_model():
 def download_model():
     """Download Gemma 3 model if not available"""
     logger = logging.getLogger(__name__)
-    
+
     if check_model():
         return True
-    
+
     logger.info("📥 Downloading Gemma 3 model (this may take 10-15 minutes)...")
-    
+
     try:
         process = subprocess.Popen(
             ['ollama', 'pull', 'gemma3:27b-instruct'],
@@ -851,7 +851,7 @@ def download_model():
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         # Monitor progress
         while True:
             output = process.stdout.readline()
@@ -859,14 +859,14 @@ def download_model():
                 break
             if output:
                 logger.info(f"📥 {output.strip()}")
-        
+
         if process.returncode == 0:
             logger.info("✅ Model downloaded successfully")
             return True
         else:
             logger.error("❌ Model download failed")
             return False
-            
+
     except Exception as e:
         logger.error(f"❌ Error downloading model: {e}")
         return False
@@ -874,33 +874,33 @@ def download_model():
 def start_application():
     """Start the FastAPI application"""
     logger = logging.getLogger(__name__)
-    
+
     logger.info("🚀 Starting AI Hiring System application...")
-    
+
     # Set environment variables
     os.environ['OLLAMA_BASE_URL'] = 'http://localhost:11434'
     os.environ['MODEL_NAME'] = 'gemma3:27b-instruct'
     os.environ['RUNPOD_POD_ID'] = os.getenv('RUNPOD_POD_ID', 'unknown')
     os.environ['WORKSPACE_PATH'] = '/workspace/langgraph'
-    
+
     try:
         # Import and run the FastAPI app
         import uvicorn
         from main import app
-        
+
         logger.info("✅ Application starting on http://0.0.0.0:8000")
         logger.info("📊 Access points:")
         logger.info("   • Main API: http://[pod-ip]:8000")
         logger.info("   • Health Check: http://[pod-ip]:8000/health")
         logger.info("   • Docs: http://[pod-ip]:8000/docs")
-        
+
         uvicorn.run(
             app,
             host="0.0.0.0",
             port=8000,
             log_level="info"
         )
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to start application: {e}")
         return False
@@ -917,29 +917,29 @@ def main():
     logger = setup_logging()
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     logger.info("🎯 Starting AI Hiring System on RunPod")
     logger.info(f"📍 Pod ID: {os.getenv('RUNPOD_POD_ID', 'unknown')}")
     logger.info(f"💾 Workspace: /workspace/langgraph")
-    
+
     # Pre-flight checks
     logger.info("🔍 Running pre-flight checks...")
-    
+
     # Check workspace
     if not Path('/workspace/langgraph').exists():
         logger.error("❌ Workspace not found. Please clone the repository first.")
         return
-    
+
     # Start Ollama
     if not start_ollama():
         logger.error("❌ Failed to start Ollama service")
         return
-    
+
     # Download model
     if not download_model():
         logger.error("❌ Failed to download model")
         return
-    
+
     # Start application
     start_application()
 
@@ -993,7 +993,7 @@ echo "3. Access your app at http://[pod-ip]:8000"
 echo ""
 echo "📊 Useful commands:"
 echo "  • Check Ollama: ollama list"
-echo "  • Check GPU: nvidia-smi" 
+echo "  • Check GPU: nvidia-smi"
 echo "  • View logs: tail -f runpod.log"
 ```
 
@@ -1063,31 +1063,37 @@ REQUEST_TIMEOUT=120
 ## Summary of Changes
 
 ### ✅ **Configuration Updates:**
+
 - Switched from Google Gemini API to local Ollama
 - Optimized settings for A100 GPU performance
 - Added RunPod-specific environment variables
 
 ### ✅ **Agent Modifications:**
+
 - Updated both agents to use Ollama API instead of Google API
 - Added connection verification and error handling
 - Optimized prompt formatting for Gemma 3
 
 ### ✅ **Application Changes:**
+
 - Added FastAPI web interface for remote access
 - Implemented async processing for better performance
 - Added health checks and monitoring endpoints
 
 ### ✅ **Batch Processing:**
+
 - Converted to async processing for better throughput
 - Added progress tracking and ETA calculations
 - Implemented concurrent processing with semaphores
 
 ### ✅ **New RunPod Files:**
+
 - `run_on_runpod.py`: Main deployment script
 - `runpod_setup.sh`: Environment setup script
 - Updated requirements and environment configuration
 
 ### 🎯 **Expected Performance:**
+
 - **Throughput**: 400-600 candidates/hour
 - **Latency**: 2-5 seconds per candidate
 - **Cost**: $0.82-1.64/hour (depending on pricing)
