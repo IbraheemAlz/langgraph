@@ -20,14 +20,14 @@ class Config:
     # === PERFORMANCE OPTIMIZATION ===
     # Optimized for H100 GPU (94GB VRAM) - PUSHING LIMITS FOR TARGET 1800/hour
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 12))  # H100 can handle more parallel work
-    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 30))    # 🚀 Increased from 20 to 30 for bigger batches
-    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 30))  # 🚀 Increased from 20 to 30 for maximum utilization
+    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 24))    # 🚀 Increased from 20 to 30 for bigger batches
+    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 12))  # 🚀 Increased from 20 to 30 for maximum utilization
     
     # === MODEL PARAMETERS ===
     MODEL_CONTEXT_LENGTH = 4096  # Restored to 4096 for full input accuracy
     TEMPERATURE = 0.001  # 🚀 Even lower for maximum speed
     TOP_P = 0.5  # 🚀 Reduced for faster sampling
-    MAX_TOKENS = 96  # 🚀 Further reduced from 128 to 96 for ultra-fast generation
+    MAX_TOKENS = 86  # 🚀 Further reduced from 128 to 96 for ultra-fast generation
     
     # === TIMEOUT SETTINGS ===
     REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', 120))  # Increased for 100% GPU utilization
