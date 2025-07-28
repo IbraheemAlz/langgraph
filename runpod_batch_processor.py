@@ -127,14 +127,20 @@ class RunPodBatchProcessor:
                 self.logger.info(f"📂 Results are in: {output_file}")
                 return output_file
             
-            # Load existing results for continuation
+            # Load existing results for continuation (only successful ones, excluding errors)
             existing_results = []
             if processed_ids:
                 try:
                     if Path(output_file).exists():
                         with open(output_file, 'r', encoding='utf-8') as f:
                             existing_data = json.load(f)
-                            existing_results = existing_data.get('results', [])
+                            all_existing_results = existing_data.get('results', [])
+                            # Only include results without errors
+                            existing_results = [r for r in all_existing_results if r.get('error') is None]
+                            
+                            error_results = [r for r in all_existing_results if r.get('error') is not None]
+                            if error_results:
+                                self.logger.info(f"🔄 Excluding {len(error_results)} error results from continuation")
                 except Exception as e:
                     self.logger.warning(f"⚠️ Could not load existing results: {e}")
                     existing_results = []
@@ -142,11 +148,14 @@ class RunPodBatchProcessor:
         all_results = existing_results.copy()  # Start with existing results
         
         # Create initial JSON structure
+        successful_existing = len([r for r in existing_results if r.get('error') is None])
+        failed_existing = len([r for r in existing_results if r.get('error') is not None])
+        
         initial_output_data = {
             "metadata": {
                 "total_candidates": original_count,  # Use original count from CSV
-                "successful_analyses": len([r for r in existing_results if r.get('error') is None]),
-                "failed_analyses": len([r for r in existing_results if r.get('error') is not None]),
+                "successful_analyses": successful_existing,
+                "failed_analyses": failed_existing,
                 "processing_time_seconds": 0,
                 "average_rate_per_second": 0,
                 "job_requirements": job_requirements,
@@ -158,13 +167,14 @@ class RunPodBatchProcessor:
                 "status": "force_reprocessing" if force_reprocess else ("resuming" if existing_results else "processing"),
                 "batches_completed": 0,
                 "batches_total": (len(candidates) + batch_size - 1) // batch_size,
-                "already_processed": 0 if force_reprocess else len(existing_results),
-                "remaining_to_process": len(candidates)
+                "already_processed": 0 if force_reprocess else successful_existing,  # Only count successful
+                "remaining_to_process": len(candidates),  # This includes error cases to reprocess
+                "error_candidates_to_retry": 0 if force_reprocess else failed_existing
             },
-            "results": existing_results,  # Include existing results
+            "results": existing_results,  # Include existing successful results only
             "summary": {
                 "total_processed": len(existing_results),
-                "success_rate": (len([r for r in existing_results if r.get('error') is None]) / len(existing_results) * 100) if existing_results else 0,
+                "success_rate": (successful_existing / len(existing_results) * 100) if existing_results else 0,
                 "avg_processing_time_per_candidate": 0
             }
         }
@@ -177,8 +187,10 @@ class RunPodBatchProcessor:
         self.logger.info(f"📦 Batch size: {batch_size} candidates per batch")
         
         if existing_results:
-            self.logger.info(f"🔄 RESUMING processing from {len(existing_results)} existing results")
-            self.logger.info(f"📊 Remaining: {len(candidates)} candidates to process")
+            self.logger.info(f"🔄 RESUMING processing from {len(existing_results)} existing successful results")
+            if failed_existing > 0:
+                self.logger.info(f"🔄 Found {failed_existing} error cases that will be reprocessed")
+            self.logger.info(f"📊 Remaining: {len(candidates)} candidates to process (including {failed_existing} retries)")
         
         # Process in optimized batches
         total_batches = (len(candidates) + batch_size - 1) // batch_size
@@ -483,8 +495,16 @@ class RunPodBatchProcessor:
         self._save_json_file(file_path, final_output_data, "FINAL")
 
     def _load_existing_results(self, output_file: str) -> List[str]:
-        """Load existing results and return list of processed candidate IDs"""
+        """
+        Load existing results and return list of successfully processed candidate IDs (excluding errors).
+        
+        This function implements smart resume functionality:
+        - Successfully processed candidates (no error field) are skipped
+        - Candidates with errors (API failures, timeouts, etc.) are marked for reprocessing
+        - This ensures failed candidates get another chance while avoiding duplicate work
+        """
         processed_ids = set()
+        error_ids = set()
         
         # Check if the specified output file exists
         if Path(output_file).exists():
@@ -495,10 +515,17 @@ class RunPodBatchProcessor:
                     for result in results:
                         candidate_id = result.get('candidate_id')
                         if candidate_id:
-                            processed_ids.add(candidate_id)
+                            # Check if this result has an error - if so, mark for reprocessing
+                            if result.get('error') is not None:
+                                error_ids.add(candidate_id)
+                                self.logger.debug(f"🔄 Will reprocess candidate with error: {candidate_id}")
+                            else:
+                                processed_ids.add(candidate_id)
                     
                 self.logger.info(f"📂 Found existing output file: {output_file}")
-                self.logger.info(f"✅ Already processed: {len(processed_ids)} candidates")
+                if error_ids:
+                    self.logger.info(f"🔄 Found {len(error_ids)} candidates with errors - will reprocess")
+                self.logger.info(f"✅ Successfully processed: {len(processed_ids)} candidates")
                 return list(processed_ids)
             except Exception as e:
                 self.logger.warning(f"⚠️ Could not read existing file {output_file}: {e}")
@@ -518,16 +545,26 @@ class RunPodBatchProcessor:
                             for result in results:
                                 candidate_id = result.get('candidate_id')
                                 if candidate_id:
-                                    processed_ids.add(candidate_id)
+                                    # Check if this result has an error - if so, mark for reprocessing
+                                    if result.get('error') is not None:
+                                        error_ids.add(candidate_id)
+                                        self.logger.debug(f"🔄 Will reprocess candidate with error: {candidate_id}")
+                                    else:
+                                        processed_ids.add(candidate_id)
                     except Exception as e:
                         self.logger.warning(f"⚠️ Could not read {json_file}: {e}")
                         continue
                 
-                if processed_ids:
-                    self.logger.info(f"✅ Total processed candidates found: {len(processed_ids)}")
-                    # Show some examples
+                if processed_ids or error_ids:
+                    self.logger.info(f"✅ Total successfully processed: {len(processed_ids)} candidates")
+                    if error_ids:
+                        self.logger.info(f"🔄 Total candidates with errors to reprocess: {len(error_ids)}")
+                        # Show some examples of error candidates
+                        sample_error_ids = list(error_ids)[:3]
+                        self.logger.info(f"📋 Sample error IDs to reprocess: {sample_error_ids}")
+                    # Show some examples of successful candidates
                     sample_ids = list(processed_ids)[:5]
-                    self.logger.info(f"📋 Sample processed IDs: {sample_ids}")
+                    self.logger.info(f"📋 Sample successfully processed IDs: {sample_ids}")
         
         return list(processed_ids)
     
@@ -622,7 +659,7 @@ def main():
     parser.add_argument("--experience-level", default="Mid-level", help="Experience level")
     parser.add_argument("--education", default="Bachelor's degree preferred", help="Education requirements")
     parser.add_argument("--test", action="store_true", help="Run file creation test only")
-    parser.add_argument("--force", action="store_true", help="Force processing all candidates (skip resume functionality)")
+    parser.add_argument("--force", action="store_true", help="Force processing all candidates (skip resume functionality and reprocess all, including successful ones)")
     
     args = parser.parse_args()
     
