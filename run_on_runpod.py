@@ -94,11 +94,6 @@ def start_ollama():
             time.sleep(2)
             if check_ollama_service():
                 logger.info("✅ Ollama service started with GPU optimization")
-                
-                # Force model preload with GPU optimization
-                logger.info("🔄 Preloading model with GPU optimization...")
-                force_gpu_model_load()
-                
                 return True
             logger.info(f"⏳ GPU initialization in progress... ({i+1}/30)")
         
@@ -107,51 +102,6 @@ def start_ollama():
         
     except Exception as e:
         logger.error(f"❌ Error starting Ollama with GPU optimization: {e}")
-        return False
-
-def force_gpu_model_load():
-    """Force model to load with GPU optimization"""
-    logger = logging.getLogger(__name__)
-    
-    try:
-        logger.info("🔄 Forcing model reload with full GPU utilization...")
-        
-        # First, unload any existing model
-        response = requests.post(
-            'http://localhost:11434/api/generate',
-            json={
-                'model': 'gemma3:27b',
-                'keep_alive': 0  # Unload model
-            },
-            timeout=10
-        )
-        time.sleep(2)
-        
-        # Force reload with GPU optimization
-        response = requests.post(
-            'http://localhost:11434/api/generate',
-            json={
-                'model': 'gemma3:27b',
-                'prompt': 'Initialize GPU',
-                'options': {
-                    'num_gpu': 99,                    # Force all layers to GPU
-                    'gpu_memory_utilization': 0.95,  # Use 95% GPU memory
-                    'num_thread': 1                   # Minimal CPU threads
-                },
-                'stream': False
-            },
-            timeout=60
-        )
-        
-        if response.status_code == 200:
-            logger.info("✅ Model loaded with full GPU optimization")
-            return True
-        else:
-            logger.warning(f"⚠️ Model load response: {response.status_code}")
-            return False
-            
-    except Exception as e:
-        logger.warning(f"⚠️ Error during GPU model preload: {e}")
         return False
 
 def check_model():
