@@ -147,13 +147,21 @@ class JobMatchingAgent:
                 if decision in ["select", "reject"]:
                     result["decision"] = decision
             
-            # Extract reasoning - combine array elements or use single string
-            if "reasoning" in parsed:
+            # Extract reasoning - handle both old and new formats
+            primary_reason_found = False
+            
+            # Check for new format first
+            if "primary_reason" in parsed:
+                result["primary_reason"] = str(parsed["primary_reason"])
+                primary_reason_found = True
+            # Fallback to old format for compatibility
+            elif "reasoning" in parsed:
                 reasoning = parsed["reasoning"]
                 if isinstance(reasoning, list):
                     result["primary_reason"] = " | ".join(reasoning)
                 else:
                     result["primary_reason"] = str(reasoning)
+                primary_reason_found = True
                     
             return result
             
@@ -169,7 +177,11 @@ class JobMatchingAgent:
                         if decision in ["select", "reject"]:
                             result["decision"] = decision
                     
-                    if "reasoning" in parsed:
+                    # Check for new format first  
+                    if "primary_reason" in parsed:
+                        result["primary_reason"] = str(parsed["primary_reason"])
+                    # Fallback to old format for compatibility
+                    elif "reasoning" in parsed:
                         reasoning = parsed["reasoning"]
                         if isinstance(reasoning, list):
                             result["primary_reason"] = " | ".join(reasoning)

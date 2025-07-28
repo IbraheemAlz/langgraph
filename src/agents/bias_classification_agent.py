@@ -163,8 +163,13 @@ class BiasClassificationAgent:
                 if classification in ["biased", "unbiased"]:
                     result["classification"] = classification
             
-            # Extract justification as feedback
-            if "justification" in parsed:
+            # Extract feedback - handle both old and new formats
+            if "specific_feedback" in parsed:
+                feedback = parsed["specific_feedback"]
+                if isinstance(feedback, str) and feedback.strip():
+                    result["specific_feedback"] = feedback.strip()
+            # Fallback to old format for compatibility
+            elif "justification" in parsed:
                 justification = parsed["justification"]
                 if isinstance(justification, str) and justification.strip():
                     result["specific_feedback"] = justification.strip()
@@ -183,7 +188,13 @@ class BiasClassificationAgent:
                         if classification in ["biased", "unbiased"]:
                             result["classification"] = classification
                     
-                    if "justification" in parsed:
+                    # Check for new format first
+                    if "specific_feedback" in parsed:
+                        feedback = parsed["specific_feedback"]
+                        if isinstance(feedback, str) and feedback.strip():
+                            result["specific_feedback"] = feedback.strip()
+                    # Fallback to old format for compatibility
+                    elif "justification" in parsed:
                         justification = parsed["justification"]
                         if isinstance(justification, str) and justification.strip():
                             result["specific_feedback"] = justification.strip()

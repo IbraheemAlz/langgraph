@@ -18,16 +18,16 @@ class Config:
     GEMINI_API_KEY: Optional[str] = None
     
     # === PERFORMANCE OPTIMIZATION ===
-    # Optimized for H100 GPU (94GB VRAM) - TESTING HIGHER CONCURRENCY
+    # Optimized for H100 GPU (94GB VRAM) - AGGRESSIVE UTILIZATION
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 12))  # H100 can handle more parallel work
-    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 10))    # Keep at 10 for now - analyze first
-    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 10))  # 🚀 Increased from 6 to 10
+    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 20))    # 🚀 Doubled from 10 to 20 for bigger batches
+    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 20))  # 🚀 Doubled from 10 to 20 for full GPU utilization
     
     # === MODEL PARAMETERS ===
-    MODEL_CONTEXT_LENGTH = 4096  # Optimized for H100 speed
+    MODEL_CONTEXT_LENGTH = 2048  # 🚀 Reduced from 4096 to 2048 for more parallel capacity
     TEMPERATURE = 0.001  # 🚀 Even lower for maximum speed
     TOP_P = 0.5  # 🚀 Reduced for faster sampling
-    MAX_TOKENS = 256  # 🚀 Reduced from 512 to 256 for faster generation
+    MAX_TOKENS = 128  # 🚀 Drastically reduced from 256 to 128 - only need short decision + reason
     
     # === TIMEOUT SETTINGS ===
     REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', 120))  # Increased for 100% GPU utilization
@@ -149,29 +149,23 @@ If the candidate passes Phase 1, proceed to a deeper, evidence-based evaluation.
 
 **Output Format:**
 
-Your final output must be a single, raw JSON object containing two keys: "decision" and "reasoning".
+Your final output must be a single, raw JSON object containing two keys: "decision" and "primary_reason".
 
 * The "decision" key must have a value of either "select" or "reject".
-* The "reasoning" key must have a value that is an array of strings. Each string should be a concise bullet point explaining the primary factors that led to the decision, referencing the evaluation criteria.
+* The "primary_reason" key must have a single, concise sentence (max 50 words) explaining the key factor that led to the decision.
 
 **Example for a 'reject' decision:**
 
 {{
   "decision": "reject",
-  "reasoning": [
-    "Major disconnect between resume and interview: The resume claims 5+ years of experience, but interview examples were limited to coursework, indicating a junior skill level.",
-    "Failed to validate experience as per Phase 2 criteria, demonstrating a significant weakness in competency assessment."
-  ]
+  "primary_reason": "Resume claims 5+ years experience but interview responses lacked depth and specific examples, indicating junior-level competency."
 }}
 
 **Example for a 'select' decision:**
 
 {{
-  "decision": "select",
-  "reasoning": [
-    "Candidate passed all foundational requirements and provided strong, evidence-based validation for resume claims during the interview.",
-    "Demonstrated a high degree of role-specific competency through detailed, STAR-method examples."
-  ]
+  "decision": "select", 
+  "primary_reason": "Candidate meets all requirements and provided detailed STAR-method examples validating claimed experience and skills."
 }}
 """,
 
@@ -293,23 +287,23 @@ Your final output must be a single, raw JSON object containing two keys: "decisi
 
 **Output Format:**
 
-Your final output must be a single, raw JSON object containing two keys: "classification" and "justification".
+Your final output must be a single, raw JSON object containing two keys: "classification" and "specific_feedback".
 
 * The "classification" key must have a value of either "biased" or "unbiased".
-* The "justification" key must contain a single, concise sentence explaining the core reason for your classification.
+* The "specific_feedback" key must contain a single, concise sentence (max 30 words) explaining your classification.
 
 **Example for a 'biased' classification:**
 
 {{
   "classification": "biased",
-  "justification": "The rejection of a highly qualified candidate who met all stated requirements suggests that non-merit factors may have influenced the decision."
+  "specific_feedback": "Rejection contradicts strong qualifications, suggesting non-merit factors influenced decision."
 }}
 
 **Example for an 'unbiased' classification:**
 
 {{
   "classification": "unbiased",
-  "justification": "The rejection decision is consistent with the candidate's failure to meet the foundational requirements specified in the job description."
+  "specific_feedback": "Decision aligns with candidate's failure to meet stated requirements."
 }}
 """,
     
@@ -368,23 +362,23 @@ Your final output must be a single, raw JSON object containing two keys: "classi
 
 **Output Format:**
 
-Your final output must be a single, raw JSON object containing two keys: "classification" and "justification".
+Your final output must be a single, raw JSON object containing two keys: "classification" and "specific_feedback".
 
 * The "classification" key must have a value of either "biased" or "unbiased".
-* The "justification" key must contain a single, concise sentence explaining whether the bias concerns were adequately addressed.
+* The "specific_feedback" key must contain a single, concise sentence (max 30 words) explaining whether bias concerns were addressed.
 
 **Example for continued 'biased' classification:**
 
 {{
   "classification": "biased",
-  "justification": "The re-evaluation failed to address the core concern about overlooking qualified candidates who meet all stated requirements."
+  "specific_feedback": "Re-evaluation failed to address core concern about overlooking qualified candidates."
 }}
 
 **Example for 'unbiased' classification:**
 
 {{
-  "classification": "unbiased",
-  "justification": "The re-evaluation successfully addressed previous bias concerns and now provides a merit-based decision supported by objective qualifications."
+  "classification": "unbiased", 
+  "specific_feedback": "Re-evaluation successfully addressed bias concerns with merit-based decision."
 }}
 """
 }
