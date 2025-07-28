@@ -50,6 +50,14 @@ class RunPodBatchProcessor:
         try:
             df = pd.read_csv(input_file)
             candidates = df.to_dict('records')
+            
+            # Enrich candidate data with dataset_index if not present
+            for i, candidate in enumerate(candidates):
+                if 'dataset_index' not in candidate:
+                    candidate['dataset_index'] = i
+                if 'id' not in candidate:
+                    candidate['id'] = f"candidate_{i}"
+            
             self.logger.info(f"📊 Loaded {len(candidates)} candidates")
         except Exception as e:
             self.logger.error(f"❌ Failed to load input file: {e}")
@@ -123,6 +131,28 @@ class RunPodBatchProcessor:
         successful_results = [r for r in all_results if r.get('error') is None]
         failed_results = [r for r in all_results if r.get('error') is not None]
         
+        # Filter and clean results for expected format
+        cleaned_results = []
+        for result in successful_results:
+            if result.get('error') is None:
+                # Create clean result matching expected format
+                cleaned_result = {
+                    "candidate_id": result.get('candidate_id', 'unknown'),
+                    "dataset_index": result.get('dataset_index', 0),
+                    "role": result.get('role', 'Unknown Role'),
+                    "final_decision": result.get('final_decision', 'reject'),
+                    "bias_classification": result.get('bias_classification', 'unbiased'),
+                    "re_evaluation_count": result.get('re_evaluation_count', 0),
+                    "evaluation_insights": result.get('evaluation_insights', []),
+                    "processing_time": result.get('processing_time', ''),
+                    "workflow_completed": result.get('workflow_completed', True),
+                    "job_feedback_count": result.get('job_feedback_count', 1),
+                    "bias_feedback_count": result.get('bias_feedback_count', 1),
+                    "ground_truth_decision": result.get('ground_truth_decision', 'unknown'),
+                    "ground_truth_bias": result.get('ground_truth_bias', 'unknown')
+                }
+                cleaned_results.append(cleaned_result)
+        
         # Save comprehensive results
         output_data = {
             "metadata": {
@@ -138,10 +168,10 @@ class RunPodBatchProcessor:
                 "concurrent_requests": self.concurrent_limit,
                 "timestamp": time.time()
             },
-            "results": all_results,
+            "results": cleaned_results,
             "summary": {
-                "total_processed": len(all_results),
-                "success_rate": len(successful_results) / len(all_results) * 100 if all_results else 0,
+                "total_processed": len(cleaned_results),
+                "success_rate": len(cleaned_results) / len(all_results) * 100 if all_results else 0,
                 "avg_processing_time_per_candidate": total_time / len(candidates) if candidates else 0
             }
         }
@@ -153,9 +183,9 @@ class RunPodBatchProcessor:
         self.logger.info("🎉 Batch processing complete!")
         self.logger.info(f"📊 Results Summary:")
         self.logger.info(f"  • Total candidates: {len(candidates)}")
-        self.logger.info(f"  • Successful: {len(successful_results)}")
+        self.logger.info(f"  • Successful: {len(cleaned_results)}")
         self.logger.info(f"  • Failed: {len(failed_results)}")
-        self.logger.info(f"  • Success rate: {len(successful_results)/len(all_results)*100:.1f}%")
+        self.logger.info(f"  • Success rate: {len(cleaned_results)/len(candidates)*100:.1f}%")
         self.logger.info(f"  • Total time: {total_time:.1f}s")
         self.logger.info(f"  • Average rate: {len(candidates)/total_time:.1f} candidates/sec")
         self.logger.info(f"💾 Results saved to: {output_file}")

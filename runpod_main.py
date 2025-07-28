@@ -260,11 +260,42 @@ async def analyze_candidate(request: Dict[str, Any]):
         
         total_time = time.time() - start_time
         
+        # Extract key data
+        candidate_id = candidate_data.get('id', 'unknown')
+        final_decision = job_analysis.get('decision', 'reject')
+        bias_classification = bias_analysis.get('classification', 'unbiased')
+        primary_reason = job_analysis.get('primary_reason', 'No reason provided')
+        specific_feedback = bias_analysis.get('specific_feedback', '')
+        
+        # Build evaluation insights structure
+        evaluation_insight = {
+            "evaluation_number": 1,
+            "decision": final_decision,
+            "primary_reason": primary_reason,
+            "agent": "job_matching",
+            "is_re_evaluation": False,
+            "classification": bias_classification,
+            "specific_feedback": specific_feedback
+        }
+        
         return {
-            "candidate_id": candidate_data.get('id', 'unknown'),
+            "candidate_id": candidate_id,
+            "dataset_index": candidate_data.get('dataset_index', 0),
+            "role": candidate_data.get('Role', job_requirements.get('title', 'Unknown Role')),
+            "final_decision": final_decision,
+            "bias_classification": bias_classification,
+            "re_evaluation_count": 0,
+            "evaluation_insights": [evaluation_insight],
+            "processing_time": time.strftime('%Y-%m-%dT%H:%M:%S.%f', time.gmtime()),
+            "workflow_completed": True,
+            "job_feedback_count": 1,
+            "bias_feedback_count": 1,
+            "ground_truth_decision": candidate_data.get('ground_truth_decision', final_decision),
+            "ground_truth_bias": candidate_data.get('ground_truth_bias', bias_classification),
+            # Legacy fields for compatibility
             "job_match": job_analysis,
             "bias_analysis": bias_analysis,
-            "processing_time": {
+            "processing_time_seconds": {
                 "job_analysis_seconds": job_time,
                 "bias_analysis_seconds": bias_time,
                 "total_seconds": total_time
