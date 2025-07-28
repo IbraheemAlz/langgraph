@@ -18,16 +18,16 @@ class Config:
     GEMINI_API_KEY: Optional[str] = None
     
     # === PERFORMANCE OPTIMIZATION ===
-    # Optimized for H100 GPU (94GB VRAM) - AGGRESSIVE SETTINGS
+    # Optimized for H100 GPU (94GB VRAM) - CONSERVATIVE SETTINGS FOR ANALYSIS
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 12))  # H100 can handle more parallel work
-    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 10))    # Process 10 candidates simultaneously
-    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 6))  # More concurrent API calls
+    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 10))    # Keep at 10 for now - analyze first
+    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 6))  # Keep at 6 for now
     
     # === MODEL PARAMETERS ===
     MODEL_CONTEXT_LENGTH = 4096  # Optimized for H100 speed
     TEMPERATURE = 0.01  # Very low for fast, deterministic responses
     TOP_P = 0.7  # Optimized for speed
-    MAX_TOKENS = 512  # Reduced for faster generation
+    MAX_TOKENS = 256  # 🚀 Reduced from 512 to 256 for faster generation
     
     # === TIMEOUT SETTINGS ===
     REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', 120))  # Increased for 100% GPU utilization
