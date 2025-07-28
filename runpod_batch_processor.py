@@ -155,6 +155,12 @@ class RunPodBatchProcessor:
         if output_file is None:
             timestamp = int(time.time())
             output_file = f"{self.config.RESULTS_FOLDER}/json/runpod_batch_results_{timestamp}.json"
+        else:
+            # Extract timestamp for use in fallback filenames
+            timestamp = int(time.time())
+        
+        self.logger.info(f"🎯 Target output file: {output_file}")
+        self.logger.info(f"⏰ Using timestamp: {timestamp}")
         
         # Ensure output directory exists with proper permissions
         output_dir = Path(output_file).parent
@@ -166,6 +172,7 @@ class RunPodBatchProcessor:
         except Exception as e:
             self.logger.error(f"❌ Failed to create output directory {output_dir}: {e}")
             # Fallback to current directory
+            timestamp = int(time.time())
             output_file = f"runpod_batch_results_{timestamp}.json"
             self.logger.info(f"📁 Using fallback output file: {output_file}")
         
@@ -173,6 +180,13 @@ class RunPodBatchProcessor:
         total_time = time.time() - start_time
         successful_results = [r for r in all_results if r.get('error') is None]
         failed_results = [r for r in all_results if r.get('error') is not None]
+        
+        self.logger.info(f"🏁 Processing completed!")
+        self.logger.info(f"📊 Final metrics:")
+        self.logger.info(f"   • Total results collected: {len(all_results)}")
+        self.logger.info(f"   • Successful: {len(successful_results)}")
+        self.logger.info(f"   • Failed: {len(failed_results)}")
+        self.logger.info(f"   • Processing time: {total_time:.1f} seconds")
         
         # Filter and clean results for expected format
         cleaned_results = []
@@ -195,6 +209,8 @@ class RunPodBatchProcessor:
                     "ground_truth_bias": result.get('ground_truth_bias', 'unknown')
                 }
                 cleaned_results.append(cleaned_result)
+        
+        self.logger.info(f"🧹 Cleaned results: {len(cleaned_results)} records ready for export")
         
         # Save comprehensive results with better error handling
         output_data = {
@@ -219,46 +235,114 @@ class RunPodBatchProcessor:
             }
         }
         
+        self.logger.info(f"🔄 Preparing to save {len(cleaned_results)} results...")
+        self.logger.info(f"📊 Data size: {len(str(output_data))} characters")
+        
+        # Check disk space and permissions before saving
+        import shutil
+        try:
+            # Check disk space in current directory
+            total, used, free = shutil.disk_usage(os.getcwd())
+            free_gb = free // (1024**3)
+            self.logger.info(f"💾 Disk space: {free_gb}GB free")
+            
+            if free_gb < 1:
+                self.logger.warning(f"⚠️ Low disk space: only {free_gb}GB available")
+            
+            # Check current user and permissions
+            user = os.environ.get('USER', 'unknown')
+            self.logger.info(f"👤 Running as user: {user}")
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ Could not check disk space: {e}")
+        
         # Try to save the results with multiple fallback strategies
         save_success = False
+        final_output_file = None
+        
+        # Get current working directory for debugging
+        import os
+        current_dir = os.getcwd()
+        self.logger.info(f"📁 Current working directory: {current_dir}")
+        
         attempts = [
             (output_file, "primary output location"),
+            (f"{current_dir}/runpod_batch_results_{timestamp}.json", "current directory"),
+            (f"/workspace/langgraph/runpod_batch_results_{timestamp}.json", "workspace langgraph directory"),
+            (f"/workspace/runpod_batch_results_{timestamp}.json", "workspace root directory"),
             (f"/tmp/runpod_batch_results_{timestamp}.json", "temporary directory"),
-            (f"./runpod_batch_results_{timestamp}.json", "current directory"),
-            (f"/workspace/runpod_batch_results_{timestamp}.json", "workspace directory")
         ]
         
-        for attempt_file, attempt_desc in attempts:
+        for i, (attempt_file, attempt_desc) in enumerate(attempts):
             try:
-                self.logger.info(f"💾 Attempting to save results to {attempt_desc}: {attempt_file}")
+                self.logger.info(f"💾 Attempt {i+1}/{len(attempts)}: Saving to {attempt_desc}")
+                self.logger.info(f"🎯 Target file: {attempt_file}")
                 
                 # Create directory if needed
                 attempt_dir = Path(attempt_file).parent
+                self.logger.info(f"📂 Creating directory: {attempt_dir}")
                 attempt_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Write the file
+                # Verify directory exists
+                if not attempt_dir.exists():
+                    self.logger.error(f"❌ Directory creation failed: {attempt_dir}")
+                    continue
+                
+                self.logger.info(f"✅ Directory confirmed: {attempt_dir}")
+                
+                # Write the file with explicit error handling
+                self.logger.info(f"✍️ Writing file: {attempt_file}")
                 with open(attempt_file, 'w', encoding='utf-8') as f:
                     json.dump(output_data, f, indent=2, ensure_ascii=False)
                 
+                self.logger.info(f"✅ File written, verifying...")
+                
                 # Verify file was created and has content
-                if Path(attempt_file).exists() and Path(attempt_file).stat().st_size > 0:
-                    output_file = attempt_file  # Update the final output file path
-                    save_success = True
-                    self.logger.info(f"✅ Results successfully saved to: {output_file}")
-                    break
+                if Path(attempt_file).exists():
+                    file_size = Path(attempt_file).stat().st_size
+                    self.logger.info(f"📄 File size: {file_size} bytes")
+                    if file_size > 0:
+                        final_output_file = attempt_file
+                        save_success = True
+                        self.logger.info(f"🎉 SUCCESS! Results saved to: {attempt_file}")
+                        break
+                    else:
+                        self.logger.warning(f"⚠️ File created but empty: {attempt_file}")
                 else:
-                    self.logger.warning(f"⚠️ File created but appears empty: {attempt_file}")
+                    self.logger.error(f"❌ File not found after write: {attempt_file}")
                     
+            except PermissionError as e:
+                self.logger.warning(f"🚫 Permission denied for {attempt_desc}: {e}")
+                continue
+            except OSError as e:
+                self.logger.warning(f"💾 OS error for {attempt_desc}: {e}")
+                continue
             except Exception as e:
-                self.logger.warning(f"⚠️ Failed to save to {attempt_desc}: {e}")
+                self.logger.warning(f"⚠️ Unexpected error for {attempt_desc}: {e}")
+                import traceback
+                self.logger.debug(traceback.format_exc())
                 continue
         
         if not save_success:
-            self.logger.error("❌ Failed to save results to any location!")
-            # As a last resort, print the results to console
+            self.logger.error("❌ ALL FILE SAVE ATTEMPTS FAILED!")
             self.logger.info("📄 Printing results to console as backup:")
+            print("\n" + "="*80)
+            print("BATCH PROCESSING RESULTS (FILE SAVE FAILED)")
+            print("="*80)
             print(json.dumps(output_data, indent=2))
-            output_file = None
+            print("="*80)
+            final_output_file = None
+        else:
+            # Double-check the saved file
+            try:
+                with open(final_output_file, 'r') as f:
+                    saved_data = json.load(f)
+                    self.logger.info(f"✅ File verification successful - contains {len(saved_data.get('results', []))} results")
+            except Exception as e:
+                self.logger.error(f"❌ File verification failed: {e}")
+        
+        # Update the return value
+        output_file = final_output_file
         
         # Final summary
         self.logger.info("🎉 Batch processing complete!")
@@ -369,20 +453,86 @@ class RunPodBatchProcessor:
             self.logger.error(f"❌ Health check failed: {e}")
             return False
 
+def test_file_creation():
+    """Test function to verify file creation works in the environment"""
+    import os
+    import json
+    from pathlib import Path
+    
+    print("🧪 Testing file creation in RunPod environment...")
+    
+    # Test data
+    test_data = {
+        "test": True,
+        "timestamp": time.time(),
+        "environment": {
+            "cwd": os.getcwd(),
+            "pod_id": os.environ.get('RUNPOD_POD_ID', 'local'),
+            "workspace": os.environ.get('WORKSPACE_PATH', 'unknown')
+        }
+    }
+    
+    # Test locations
+    timestamp = int(time.time())
+    test_locations = [
+        f"./test_file_{timestamp}.json",
+        f"/workspace/test_file_{timestamp}.json",
+        f"/workspace/langgraph/test_file_{timestamp}.json", 
+        f"/tmp/test_file_{timestamp}.json",
+        f"results/test_file_{timestamp}.json"
+    ]
+    
+    success_count = 0
+    for location in test_locations:
+        try:
+            # Create directory if needed
+            Path(location).parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write test file
+            with open(location, 'w') as f:
+                json.dump(test_data, f, indent=2)
+            
+            # Verify file
+            if Path(location).exists() and Path(location).stat().st_size > 0:
+                print(f"✅ SUCCESS: {location}")
+                success_count += 1
+                # Clean up test file
+                try:
+                    Path(location).unlink()
+                except:
+                    pass
+            else:
+                print(f"❌ FAILED: {location} (file not created or empty)")
+                
+        except Exception as e:
+            print(f"❌ FAILED: {location} - {e}")
+    
+    print(f"📊 File creation test results: {success_count}/{len(test_locations)} locations successful")
+    return success_count > 0
+
 def main():
     """CLI interface for RunPod batch processing"""
     parser = argparse.ArgumentParser(description="RunPod Batch Processor for AI Hiring System")
-    parser.add_argument("--input", required=True, help="Input CSV file path")
+    parser.add_argument("--input", help="Input CSV file path")
     parser.add_argument("--output", help="Output JSON file path (optional)")
     parser.add_argument("--api-url", default="http://localhost:8000", help="API base URL")
     parser.add_argument("--job-title", default="Software Engineer", help="Job title")
     parser.add_argument("--required-skills", default="Python,JavaScript,AI,Machine Learning", help="Required skills (comma-separated)")
     parser.add_argument("--experience-level", default="Mid-level", help="Experience level")
     parser.add_argument("--education", default="Bachelor's degree preferred", help="Education requirements")
+    parser.add_argument("--test", action="store_true", help="Run file creation test only")
     
     args = parser.parse_args()
     
-    # Validate input file
+    # If test mode, run test and exit
+    if args.test:
+        return 0 if test_file_creation() else 1
+    
+    # Validate input file (only required if not in test mode)
+    if not args.input:
+        print("❌ --input argument is required (unless using --test)")
+        return 1
+        
     if not Path(args.input).exists():
         print(f"❌ Input file not found: {args.input}")
         return 1
