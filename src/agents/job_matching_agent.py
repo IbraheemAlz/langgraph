@@ -50,14 +50,12 @@ class JobMatchingAgent:
                 "num_ctx": self.config.MODEL_CONTEXT_LENGTH,
                 "num_batch": self.config.OLLAMA_BATCH_SIZE,  # H100 batch optimization
                 "num_gpu": 99,                               # Force ALL layers to GPU (critical fix!)
-                "gpu_memory_utilization": 0.95,             # Use 95% GPU memory
                 "num_thread": 1,                             # Minimal CPU threads for GPU mode
-                "use_mlock": False,                          # Disable to avoid warnings
                 "use_mmap": True,                            # Memory mapping for speed
-                "numa": False,                               # Disable NUMA for single GPU
-                "max_tokens": self.config.MAX_TOKENS,        # 🚀 Add explicit token limit
-                "repeat_penalty": 1.0,                      # 🚀 Disable penalty for speed
-                "top_k": 20                                  # 🚀 Reduce top_k for faster sampling
+                "numa": False,                               # Valid parameter for NUMA control
+                "repeat_penalty": 1.0,                      # Valid parameter for repetition control
+                "top_k": 20,                                 # Valid parameter for top-k sampling
+                "num_predict": self.config.MAX_TOKENS        # Use num_predict instead of max_tokens
             }
         }
         
@@ -77,6 +75,7 @@ class JobMatchingAgent:
             raise
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Ollama request failed: {e}")
+            raise
     def run(self, Resume: str, Job_Description: str, Transcript: str, Role: str, feedback: str = None) -> dict:
         """
         Make a hiring decision based on candidate information using Ollama.

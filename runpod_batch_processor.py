@@ -14,6 +14,8 @@ from pathlib import Path
 import pandas as pd
 import sys
 import argparse
+import os
+import stat
 
 # Add src to path
 sys.path.append('src')
@@ -28,6 +30,9 @@ class RunPodBatchProcessor:
         self.logger = self._setup_logging()
         self.concurrent_limit = self.config.CONCURRENT_REQUESTS
         
+        # Initialize output directories and verify permissions
+        self._setup_output_directories()
+        
     def _setup_logging(self):
         """Setup logging for batch processing"""
         logging.basicConfig(
@@ -39,6 +44,27 @@ class RunPodBatchProcessor:
             ]
         )
         return logging.getLogger(__name__)
+        
+    def _setup_output_directories(self):
+        """Setup and verify output directories with proper permissions"""
+        directories_to_create = [
+            self.config.RESULTS_FOLDER,
+            f"{self.config.RESULTS_FOLDER}/json",
+            "/tmp",  # Fallback directory
+            "/workspace"  # RunPod workspace directory
+        ]
+        
+        for dir_path in directories_to_create:
+            try:
+                Path(dir_path).mkdir(parents=True, exist_ok=True)
+                # Test write permissions
+                test_file = Path(dir_path) / "test_write_permission.tmp"
+                test_file.write_text("test")
+                test_file.unlink()  # Remove test file
+                self.logger.info(f"✅ Directory ready with write access: {dir_path}")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Directory access issue for {dir_path}: {e}")
+                continue
         
     async def process_batch_file(self, input_file: str, job_requirements: Dict[str, Any], output_file: str = None):
         """Process a CSV file of candidates with optimized batching"""
@@ -130,8 +156,18 @@ class RunPodBatchProcessor:
             timestamp = int(time.time())
             output_file = f"{self.config.RESULTS_FOLDER}/json/runpod_batch_results_{timestamp}.json"
         
-        # Ensure output directory exists
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+        # Ensure output directory exists with proper permissions
+        output_dir = Path(output_file).parent
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            # Ensure we have write permissions
+            os.chmod(output_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            self.logger.info(f"📁 Output directory prepared: {output_dir}")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to create output directory {output_dir}: {e}")
+            # Fallback to current directory
+            output_file = f"runpod_batch_results_{timestamp}.json"
+            self.logger.info(f"📁 Using fallback output file: {output_file}")
         
         # Calculate final metrics
         total_time = time.time() - start_time
@@ -160,7 +196,7 @@ class RunPodBatchProcessor:
                 }
                 cleaned_results.append(cleaned_result)
         
-        # Save comprehensive results
+        # Save comprehensive results with better error handling
         output_data = {
             "metadata": {
                 "total_candidates": len(candidates),
@@ -183,8 +219,46 @@ class RunPodBatchProcessor:
             }
         }
         
-        with open(output_file, 'w') as f:
-            json.dump(output_data, f, indent=2)
+        # Try to save the results with multiple fallback strategies
+        save_success = False
+        attempts = [
+            (output_file, "primary output location"),
+            (f"/tmp/runpod_batch_results_{timestamp}.json", "temporary directory"),
+            (f"./runpod_batch_results_{timestamp}.json", "current directory"),
+            (f"/workspace/runpod_batch_results_{timestamp}.json", "workspace directory")
+        ]
+        
+        for attempt_file, attempt_desc in attempts:
+            try:
+                self.logger.info(f"💾 Attempting to save results to {attempt_desc}: {attempt_file}")
+                
+                # Create directory if needed
+                attempt_dir = Path(attempt_file).parent
+                attempt_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Write the file
+                with open(attempt_file, 'w', encoding='utf-8') as f:
+                    json.dump(output_data, f, indent=2, ensure_ascii=False)
+                
+                # Verify file was created and has content
+                if Path(attempt_file).exists() and Path(attempt_file).stat().st_size > 0:
+                    output_file = attempt_file  # Update the final output file path
+                    save_success = True
+                    self.logger.info(f"✅ Results successfully saved to: {output_file}")
+                    break
+                else:
+                    self.logger.warning(f"⚠️ File created but appears empty: {attempt_file}")
+                    
+            except Exception as e:
+                self.logger.warning(f"⚠️ Failed to save to {attempt_desc}: {e}")
+                continue
+        
+        if not save_success:
+            self.logger.error("❌ Failed to save results to any location!")
+            # As a last resort, print the results to console
+            self.logger.info("📄 Printing results to console as backup:")
+            print(json.dumps(output_data, indent=2))
+            output_file = None
         
         # Final summary
         self.logger.info("🎉 Batch processing complete!")
@@ -313,6 +387,13 @@ def main():
         print(f"❌ Input file not found: {args.input}")
         return 1
     
+    # Check if we're in RunPod environment
+    runpod_pod_id = os.environ.get('RUNPOD_POD_ID', 'local')
+    workspace_path = os.environ.get('WORKSPACE_PATH', os.getcwd())
+    print(f"🏃 Running in environment: {'RunPod' if runpod_pod_id != 'local' else 'Local'}")
+    print(f"📍 Pod ID: {runpod_pod_id}")
+    print(f"📁 Workspace: {workspace_path}")
+    
     # Create job requirements
     job_requirements = {
         "title": args.job_title,
@@ -322,32 +403,60 @@ def main():
     }
     
     # Initialize processor
-    processor = RunPodBatchProcessor(api_url=args.api_url)
+    try:
+        processor = RunPodBatchProcessor(api_url=args.api_url)
+        print(f"✅ Batch processor initialized successfully")
+    except Exception as e:
+        print(f"❌ Failed to initialize batch processor: {e}")
+        return 1
     
     async def run_processing():
         # Health check first
         print("🔍 Checking API health...")
         if not await processor.health_check():
             print("❌ API service not healthy. Please ensure the service is running.")
+            print("💡 Try running: python run_on_runpod.py")
             return 1
         
         # Run batch processing
-        result_file = await processor.process_batch_file(
-            args.input,
-            job_requirements,
-            args.output
-        )
-        
-        if result_file:
-            print(f"✅ Processing complete! Results saved to: {result_file}")
-            return 0
-        else:
-            print("❌ Processing failed")
+        try:
+            result_file = await processor.process_batch_file(
+                args.input,
+                job_requirements,
+                args.output
+            )
+            
+            if result_file:
+                print(f"✅ Processing complete! Results saved to: {result_file}")
+                # Verify file exists and has content
+                if Path(result_file).exists():
+                    file_size = Path(result_file).stat().st_size
+                    print(f"📊 Result file size: {file_size:,} bytes")
+                    return 0
+                else:
+                    print(f"⚠️ Result file was not found at expected location: {result_file}")
+                    return 1
+            else:
+                print("❌ Processing failed - no output file created")
+                return 1
+                
+        except Exception as e:
+            print(f"❌ Processing failed with error: {e}")
+            import traceback
+            traceback.print_exc()
             return 1
     
     # Run the async main function
-    exit_code = asyncio.run(run_processing())
-    exit(exit_code)
+    try:
+        exit_code = asyncio.run(run_processing())
+        return exit_code
+    except KeyboardInterrupt:
+        print("\n🛑 Processing interrupted by user")
+        return 1
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    exit(exit_code)
