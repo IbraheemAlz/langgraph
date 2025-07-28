@@ -19,9 +19,9 @@ class Config:
     
     # === PERFORMANCE OPTIMIZATION ===
     # Optimized for H100 GPU (94GB VRAM) - PUSHING LIMITS FOR TARGET 1800/hour
-    MAX_WORKERS = int(os.getenv('MAX_WORKERS', 12))  # H100 can handle more parallel work
-    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 24))    # 🚀 Increased from 20 to 30 for bigger batches
-    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 12))  # 🚀 Increased from 20 to 30 for maximum utilization
+    MAX_WORKERS = int(os.getenv('MAX_WORKERS', 10))  # H100 can handle more parallel work
+    BATCH_SIZE = int(os.getenv('BATCH_SIZE', 20))    # 🚀 Increased from 20 to 30 for bigger batches
+    CONCURRENT_REQUESTS = int(os.getenv('CONCURRENT_REQUESTS', 10))  # 🚀 Increased from 20 to 30 for maximum utilization
     
     # === MODEL PARAMETERS ===
     MODEL_CONTEXT_LENGTH = 4096  # Restored to 4096 for full input accuracy
