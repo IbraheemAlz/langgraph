@@ -105,6 +105,43 @@ class RunPodBatchProcessor:
         batch_size = self.config.BATCH_SIZE
         all_results = []
         
+        # Initialize JSON file structure immediately
+        timestamp = int(time.time())
+        if output_file is None:
+            output_file = f"{self.config.RESULTS_FOLDER}/json/runpod_batch_results_{timestamp}.json"
+        
+        self.logger.info(f"🎯 Target output file: {output_file}")
+        self.logger.info(f"⏰ Using timestamp: {timestamp}")
+        
+        # Create initial JSON structure
+        initial_output_data = {
+            "metadata": {
+                "total_candidates": len(candidates),
+                "successful_analyses": 0,
+                "failed_analyses": 0,
+                "processing_time_seconds": 0,
+                "average_rate_per_second": 0,
+                "job_requirements": job_requirements,
+                "model_used": self.config.MODEL_NAME,
+                "pod_id": self.config.RUNPOD_POD_ID,
+                "batch_size": batch_size,
+                "concurrent_requests": self.concurrent_limit,
+                "timestamp": time.time(),
+                "status": "processing",
+                "batches_completed": 0,
+                "batches_total": (len(candidates) + batch_size - 1) // batch_size
+            },
+            "results": [],
+            "summary": {
+                "total_processed": 0,
+                "success_rate": 0,
+                "avg_processing_time_per_candidate": 0
+            }
+        }
+        
+        # Create the initial JSON file
+        self._save_json_file(output_file, initial_output_data, "INITIAL")
+        
         self.logger.info(f"⚡ Processing with {self.concurrent_limit} concurrent requests")
         self.logger.info(f"📦 Batch size: {batch_size} candidates per batch")
         
@@ -122,6 +159,10 @@ class RunPodBatchProcessor:
                 batch_results = await self._process_batch_async(batch, job_requirements)
                 all_results.extend(batch_results)
                 
+                # Update JSON file after each batch
+                await self._update_json_after_batch(output_file, all_results, candidates, job_requirements, 
+                                                   batch_num, total_batches, start_time, timestamp)
+                
                 # Progress metrics
                 batch_time = time.time() - batch_start
                 processed = len(all_results)
@@ -132,6 +173,7 @@ class RunPodBatchProcessor:
                 self.logger.info(f"✅ Batch {batch_num} complete in {batch_time:.1f}s")
                 self.logger.info(f"📈 Progress: {processed}/{len(candidates)} ({rate:.1f} candidates/sec)")
                 self.logger.info(f"⏱️ ETA: {eta:.0f}s remaining")
+                self.logger.info(f"💾 JSON updated: {output_file}")
                 
                 # Memory management for large datasets
                 if batch_num % 10 == 0:
@@ -150,210 +192,28 @@ class RunPodBatchProcessor:
                         "bias_analysis": None,
                         "timestamp": time.time()
                     })
+                
+                # Still update JSON even with errors
+                await self._update_json_after_batch(output_file, all_results, candidates, job_requirements, 
+                                                   batch_num, total_batches, start_time, timestamp)
         
-        # Generate output file
-        if output_file is None:
-            timestamp = int(time.time())
-            output_file = f"{self.config.RESULTS_FOLDER}/json/runpod_batch_results_{timestamp}.json"
-        else:
-            # Extract timestamp for use in fallback filenames
-            timestamp = int(time.time())
+        # Final update to mark completion
+        await self._finalize_json_file(output_file, all_results, candidates, job_requirements, start_time, timestamp)
         
-        self.logger.info(f"🎯 Target output file: {output_file}")
-        self.logger.info(f"⏰ Using timestamp: {timestamp}")
-        
-        # Ensure output directory exists with proper permissions
-        output_dir = Path(output_file).parent
-        try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            # Ensure we have write permissions
-            os.chmod(output_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-            self.logger.info(f"📁 Output directory prepared: {output_dir}")
-        except Exception as e:
-            self.logger.error(f"❌ Failed to create output directory {output_dir}: {e}")
-            # Fallback to current directory
-            timestamp = int(time.time())
-            output_file = f"runpod_batch_results_{timestamp}.json"
-            self.logger.info(f"📁 Using fallback output file: {output_file}")
-        
-        # Calculate final metrics
+        # Final summary
         total_time = time.time() - start_time
         successful_results = [r for r in all_results if r.get('error') is None]
         failed_results = [r for r in all_results if r.get('error') is not None]
         
-        self.logger.info(f"🏁 Processing completed!")
-        self.logger.info(f"📊 Final metrics:")
-        self.logger.info(f"   • Total results collected: {len(all_results)}")
-        self.logger.info(f"   • Successful: {len(successful_results)}")
-        self.logger.info(f"   • Failed: {len(failed_results)}")
-        self.logger.info(f"   • Processing time: {total_time:.1f} seconds")
-        
-        # Filter and clean results for expected format
-        cleaned_results = []
-        for result in successful_results:
-            if result.get('error') is None:
-                # Create clean result matching expected format
-                cleaned_result = {
-                    "candidate_id": result.get('candidate_id', 'unknown'),
-                    "dataset_index": result.get('dataset_index', 0),
-                    "role": result.get('role', 'Unknown Role'),
-                    "final_decision": result.get('final_decision', 'reject'),
-                    "bias_classification": result.get('bias_classification', 'unbiased'),
-                    "re_evaluation_count": result.get('re_evaluation_count', 0),
-                    "evaluation_insights": result.get('evaluation_insights', []),
-                    "processing_time": result.get('processing_time', ''),
-                    "workflow_completed": result.get('workflow_completed', True),
-                    "job_feedback_count": result.get('job_feedback_count', 1),
-                    "bias_feedback_count": result.get('bias_feedback_count', 1),
-                    "ground_truth_decision": result.get('ground_truth_decision', 'unknown'),
-                    "ground_truth_bias": result.get('ground_truth_bias', 'unknown')
-                }
-                cleaned_results.append(cleaned_result)
-        
-        self.logger.info(f"🧹 Cleaned results: {len(cleaned_results)} records ready for export")
-        
-        # Save comprehensive results with better error handling
-        output_data = {
-            "metadata": {
-                "total_candidates": len(candidates),
-                "successful_analyses": len(successful_results),
-                "failed_analyses": len(failed_results),
-                "processing_time_seconds": total_time,
-                "average_rate_per_second": len(candidates) / total_time,
-                "job_requirements": job_requirements,
-                "model_used": self.config.MODEL_NAME,
-                "pod_id": self.config.RUNPOD_POD_ID,
-                "batch_size": batch_size,
-                "concurrent_requests": self.concurrent_limit,
-                "timestamp": time.time()
-            },
-            "results": cleaned_results,
-            "summary": {
-                "total_processed": len(cleaned_results),
-                "success_rate": len(cleaned_results) / len(all_results) * 100 if all_results else 0,
-                "avg_processing_time_per_candidate": total_time / len(candidates) if candidates else 0
-            }
-        }
-        
-        self.logger.info(f"🔄 Preparing to save {len(cleaned_results)} results...")
-        self.logger.info(f"📊 Data size: {len(str(output_data))} characters")
-        
-        # Check disk space and permissions before saving
-        import shutil
-        try:
-            # Check disk space in current directory
-            total, used, free = shutil.disk_usage(os.getcwd())
-            free_gb = free // (1024**3)
-            self.logger.info(f"💾 Disk space: {free_gb}GB free")
-            
-            if free_gb < 1:
-                self.logger.warning(f"⚠️ Low disk space: only {free_gb}GB available")
-            
-            # Check current user and permissions
-            user = os.environ.get('USER', 'unknown')
-            self.logger.info(f"👤 Running as user: {user}")
-            
-        except Exception as e:
-            self.logger.warning(f"⚠️ Could not check disk space: {e}")
-        
-        # Try to save the results with multiple fallback strategies
-        save_success = False
-        final_output_file = None
-        
-        # Get current working directory for debugging
-        import os
-        current_dir = os.getcwd()
-        self.logger.info(f"📁 Current working directory: {current_dir}")
-        
-        attempts = [
-            (output_file, "primary output location"),
-            (f"{current_dir}/runpod_batch_results_{timestamp}.json", "current directory"),
-            (f"/workspace/langgraph/runpod_batch_results_{timestamp}.json", "workspace langgraph directory"),
-            (f"/workspace/runpod_batch_results_{timestamp}.json", "workspace root directory"),
-            (f"/tmp/runpod_batch_results_{timestamp}.json", "temporary directory"),
-        ]
-        
-        for i, (attempt_file, attempt_desc) in enumerate(attempts):
-            try:
-                self.logger.info(f"💾 Attempt {i+1}/{len(attempts)}: Saving to {attempt_desc}")
-                self.logger.info(f"🎯 Target file: {attempt_file}")
-                
-                # Create directory if needed
-                attempt_dir = Path(attempt_file).parent
-                self.logger.info(f"📂 Creating directory: {attempt_dir}")
-                attempt_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Verify directory exists
-                if not attempt_dir.exists():
-                    self.logger.error(f"❌ Directory creation failed: {attempt_dir}")
-                    continue
-                
-                self.logger.info(f"✅ Directory confirmed: {attempt_dir}")
-                
-                # Write the file with explicit error handling
-                self.logger.info(f"✍️ Writing file: {attempt_file}")
-                with open(attempt_file, 'w', encoding='utf-8') as f:
-                    json.dump(output_data, f, indent=2, ensure_ascii=False)
-                
-                self.logger.info(f"✅ File written, verifying...")
-                
-                # Verify file was created and has content
-                if Path(attempt_file).exists():
-                    file_size = Path(attempt_file).stat().st_size
-                    self.logger.info(f"📄 File size: {file_size} bytes")
-                    if file_size > 0:
-                        final_output_file = attempt_file
-                        save_success = True
-                        self.logger.info(f"🎉 SUCCESS! Results saved to: {attempt_file}")
-                        break
-                    else:
-                        self.logger.warning(f"⚠️ File created but empty: {attempt_file}")
-                else:
-                    self.logger.error(f"❌ File not found after write: {attempt_file}")
-                    
-            except PermissionError as e:
-                self.logger.warning(f"🚫 Permission denied for {attempt_desc}: {e}")
-                continue
-            except OSError as e:
-                self.logger.warning(f"💾 OS error for {attempt_desc}: {e}")
-                continue
-            except Exception as e:
-                self.logger.warning(f"⚠️ Unexpected error for {attempt_desc}: {e}")
-                import traceback
-                self.logger.debug(traceback.format_exc())
-                continue
-        
-        if not save_success:
-            self.logger.error("❌ ALL FILE SAVE ATTEMPTS FAILED!")
-            self.logger.info("📄 Printing results to console as backup:")
-            print("\n" + "="*80)
-            print("BATCH PROCESSING RESULTS (FILE SAVE FAILED)")
-            print("="*80)
-            print(json.dumps(output_data, indent=2))
-            print("="*80)
-            final_output_file = None
-        else:
-            # Double-check the saved file
-            try:
-                with open(final_output_file, 'r') as f:
-                    saved_data = json.load(f)
-                    self.logger.info(f"✅ File verification successful - contains {len(saved_data.get('results', []))} results")
-            except Exception as e:
-                self.logger.error(f"❌ File verification failed: {e}")
-        
-        # Update the return value
-        output_file = final_output_file
-        
-        # Final summary
         self.logger.info("🎉 Batch processing complete!")
         self.logger.info(f"📊 Results Summary:")
         self.logger.info(f"  • Total candidates: {len(candidates)}")
-        self.logger.info(f"  • Successful: {len(cleaned_results)}")
+        self.logger.info(f"  • Successful: {len(successful_results)}")
         self.logger.info(f"  • Failed: {len(failed_results)}")
-        self.logger.info(f"  • Success rate: {len(cleaned_results)/len(candidates)*100:.1f}%")
+        self.logger.info(f"  • Success rate: {len(successful_results)/len(candidates)*100:.1f}%")
         self.logger.info(f"  • Total time: {total_time:.1f}s")
         self.logger.info(f"  • Average rate: {len(candidates)/total_time:.1f} candidates/sec")
-        self.logger.info(f"💾 Results saved to: {output_file}")
+        self.logger.info(f"💾 Final results saved to: {output_file}")
         
         return output_file
     
@@ -452,6 +312,109 @@ class RunPodBatchProcessor:
         except Exception as e:
             self.logger.error(f"❌ Health check failed: {e}")
             return False
+
+    def _save_json_file(self, file_path: str, data: Dict[str, Any], status: str):
+        """Saves the current state of the processing to a JSON file."""
+        try:
+            # Ensure the directory exists
+            file_path_obj = Path(file_path)
+            file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+            
+            self.logger.info(f"💾 Saving JSON file: {file_path} (Status: {status})")
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            # Verify file was saved successfully
+            if file_path_obj.exists() and file_path_obj.stat().st_size > 0:
+                file_size = file_path_obj.stat().st_size
+                result_count = len(data.get('results', []))
+                self.logger.info(f"✅ JSON file saved: {file_path} ({file_size:,} bytes, {result_count} results)")
+            else:
+                self.logger.error(f"❌ JSON file not created or empty: {file_path}")
+                
+        except PermissionError as e:
+            self.logger.warning(f"🚫 Permission denied for saving JSON: {e}")
+            # Try fallback location
+            fallback_path = f"/tmp/runpod_batch_results_{int(time.time())}.json"
+            try:
+                with open(fallback_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                self.logger.info(f"✅ JSON saved to fallback location: {fallback_path}")
+            except Exception as fallback_e:
+                self.logger.error(f"❌ Fallback save also failed: {fallback_e}")
+        except OSError as e:
+            self.logger.warning(f"💾 OS error for saving JSON: {e}")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to save JSON file {file_path}: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+
+    async def _update_json_after_batch(self, file_path: str, all_results: List[Dict[str, Any]], candidates: List[Dict[str, Any]], 
+                                        job_requirements: Dict[str, Any], batch_num: int, total_batches: int, 
+                                        start_time: float, timestamp: int):
+        """Updates the JSON file with results from the current batch."""
+        processed = len(all_results)
+        successful = [r for r in all_results if r.get('error') is None]
+        failed = [r for r in all_results if r.get('error') is not None]
+        
+        current_output_data = {
+            "metadata": {
+                "total_candidates": len(candidates),
+                "successful_analyses": len(successful),
+                "failed_analyses": len(failed),
+                "processing_time_seconds": time.time() - start_time,
+                "average_rate_per_second": processed / (time.time() - start_time) if (time.time() - start_time) > 0 else 0,
+                "job_requirements": job_requirements,
+                "model_used": self.config.MODEL_NAME,
+                "pod_id": self.config.RUNPOD_POD_ID,
+                "batch_size": self.config.BATCH_SIZE,
+                "concurrent_requests": self.concurrent_limit,
+                "timestamp": time.time(),
+                "status": "processing",
+                "batches_completed": batch_num,
+                "batches_total": total_batches
+            },
+            "results": all_results,
+            "summary": {
+                "total_processed": processed,
+                "success_rate": len(successful) / processed * 100 if processed > 0 else 0,
+                "avg_processing_time_per_candidate": (time.time() - start_time) / processed if processed > 0 else 0
+            }
+        }
+        self._save_json_file(file_path, current_output_data, f"BATCH_{batch_num}")
+
+    async def _finalize_json_file(self, file_path: str, all_results: List[Dict[str, Any]], candidates: List[Dict[str, Any]], 
+                                   job_requirements: Dict[str, Any], start_time: float, timestamp: int):
+        """Finalizes the JSON file by marking completion and adding final metrics."""
+        processed = len(all_results)
+        successful = [r for r in all_results if r.get('error') is None]
+        failed = [r for r in all_results if r.get('error') is not None]
+        
+        final_output_data = {
+            "metadata": {
+                "total_candidates": len(candidates),
+                "successful_analyses": len(successful),
+                "failed_analyses": len(failed),
+                "processing_time_seconds": time.time() - start_time,
+                "average_rate_per_second": processed / (time.time() - start_time) if (time.time() - start_time) > 0 else 0,
+                "job_requirements": job_requirements,
+                "model_used": self.config.MODEL_NAME,
+                "pod_id": self.config.RUNPOD_POD_ID,
+                "batch_size": self.config.BATCH_SIZE,
+                "concurrent_requests": self.concurrent_limit,
+                "timestamp": time.time(),
+                "status": "completed",
+                "batches_completed": (len(candidates) + self.config.BATCH_SIZE - 1) // self.config.BATCH_SIZE,
+                "batches_total": (len(candidates) + self.config.BATCH_SIZE - 1) // self.config.BATCH_SIZE
+            },
+            "results": all_results,
+            "summary": {
+                "total_processed": processed,
+                "success_rate": len(successful) / processed * 100 if processed > 0 else 0,
+                "avg_processing_time_per_candidate": (time.time() - start_time) / processed if processed > 0 else 0
+            }
+        }
+        self._save_json_file(file_path, final_output_data, "FINAL")
 
 def test_file_creation():
     """Test function to verify file creation works in the environment"""
