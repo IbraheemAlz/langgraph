@@ -30,7 +30,7 @@ class Config:
     MAX_TOKENS = 512  # Reduced for faster generation
     
     # === TIMEOUT SETTINGS ===
-    REQUEST_TIMEOUT = 30  # Aggressive timeout for H100 speed
+    REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', 120))  # Increased for 100% GPU utilization
     MODEL_LOAD_TIMEOUT = 300  # 5 minutes for model loading
     
     # === OLLAMA OPTIMIZATION FOR H100 ===

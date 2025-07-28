@@ -233,7 +233,8 @@ def start_application():
         'MODEL_NAME': 'gemma3:27b',
         'RUNPOD_POD_ID': os.getenv('RUNPOD_POD_ID', 'unknown'),
         'WORKSPACE_PATH': '/workspace/langgraph',
-        'LOG_LEVEL': 'INFO'
+        'LOG_LEVEL': 'INFO',
+        'REQUEST_TIMEOUT': '180'  # 3 minutes for 100% GPU utilization mode
     })
     
     try:
