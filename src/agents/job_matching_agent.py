@@ -49,9 +49,10 @@ class JobMatchingAgent:
                 "top_p": self.config.TOP_P,
                 "num_ctx": self.config.MODEL_CONTEXT_LENGTH,
                 "num_batch": self.config.OLLAMA_BATCH_SIZE,  # H100 batch optimization
-                "num_gpu": self.config.OLLAMA_NUM_GPU,       # Single H100 GPU
-                "num_thread": self.config.OLLAMA_NUM_THREAD, # CPU thread optimization
-                "use_mlock": True,                           # Lock memory for performance
+                "num_gpu": 99,                               # Force ALL layers to GPU (critical fix!)
+                "gpu_memory_utilization": 0.95,             # Use 95% GPU memory
+                "num_thread": 1,                             # Minimal CPU threads for GPU mode
+                "use_mlock": False,                          # Disable to avoid warnings
                 "use_mmap": True,                            # Memory mapping for speed
                 "numa": False                                # Disable NUMA for single GPU
             }
