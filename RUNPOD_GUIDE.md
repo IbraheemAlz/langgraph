@@ -12,6 +12,45 @@ python run_on_runpod.py
 python runpod_batch_processor.py --input sample-data.csv
 ```
 
+### 3. Monitor Performance (NEW!)
+```bash
+python performance_monitor.py
+```
+
+## 🔄 **SMART RESUME FUNCTIONALITY (NEW!)**
+
+The batch processor now automatically **resumes from where it left off** if processing is interrupted!
+
+### How Resume Works:
+1. **Automatic Detection**: Scans for existing JSON files in `results/json/` folder
+2. **ID Matching**: Reads `candidate_id` from existing results
+3. **Smart Filtering**: Skips already processed candidates automatically
+4. **Seamless Continuation**: Continues processing remaining candidates
+
+### Resume Examples:
+```bash
+# First run (processes 1000 candidates, gets interrupted after 400)
+python runpod_batch_processor.py --input data.csv
+
+# Second run (automatically skips first 400, processes remaining 600)  
+python runpod_batch_processor.py --input data.csv
+
+# Force reprocess ALL candidates (ignore existing results)
+python runpod_batch_processor.py --input data.csv --force
+```
+
+### What You'll See:
+```
+📂 Found existing output file: results/json/runpod_batch_results_1738027800.json
+✅ Already processed: 847 candidates
+🔄 Filtering results:
+   📊 Total candidates: 10174
+   ✅ Already processed: 847
+   🔄 Remaining to process: 9327
+🔄 RESUMING processing from 847 existing results
+📊 Remaining: 9327 candidates to process
+```
+
 ## Recent Fixes (2025-07-28)
 
 ### ✅ Fixed Ollama Configuration Warnings
@@ -41,13 +80,22 @@ python runpod_batch_processor.py --input sample-data.csv
 
 ## Usage Commands
 
-### Basic Commands
+### Basic Commands (H100-Optimized)
 ```bash
-# Start the AI system (required first)
+# Start the H100-optimized AI system (required first)
 python run_on_runpod.py
 
-# Run batch processing with sample data
+# Run batch processing with H100 optimizations
 python runpod_batch_processor.py --input sample-data.csv
+
+# Monitor performance in real-time
+python performance_monitor.py
+
+# Resume interrupted processing (automatic)
+python runpod_batch_processor.py --input sample-data.csv --output existing_results.json
+
+# Force reprocess all candidates (ignore existing results)
+python runpod_batch_processor.py --input sample-data.csv --force
 
 # Run with custom job requirements
 python runpod_batch_processor.py \

@@ -66,7 +66,7 @@ class RunPodBatchProcessor:
                 self.logger.warning(f"⚠️ Directory access issue for {dir_path}: {e}")
                 continue
         
-    async def process_batch_file(self, input_file: str, job_requirements: Dict[str, Any], output_file: str = None):
+    async def process_batch_file(self, input_file: str, job_requirements: Dict[str, Any], output_file: str = None, force_reprocess: bool = False):
         """Process a CSV file of candidates with optimized batching"""
         
         self.logger.info(f"🚀 Starting RunPod batch processing")
@@ -90,7 +90,7 @@ class RunPodBatchProcessor:
                     candidate['id'] = f"candidate_{i}"  # Fallback for missing ID
                     self.logger.debug(f"Generated fallback ID: {candidate['id']}")
             
-            self.logger.info(f"📊 Loaded {len(candidates)} candidates")
+            self.logger.info(f"📊 Loaded {len(candidates)} candidates from CSV")
             self.logger.info(f"🔍 Sample IDs: {[c.get('id', 'missing') for c in candidates[:3]]}")  # Show first 3 IDs
         except Exception as e:
             self.logger.error(f"❌ Failed to load input file: {e}")
@@ -103,7 +103,6 @@ class RunPodBatchProcessor:
         # Setup processing
         start_time = time.time()
         batch_size = self.config.BATCH_SIZE
-        all_results = []
         
         # Initialize JSON file structure immediately
         timestamp = int(time.time())
@@ -111,14 +110,43 @@ class RunPodBatchProcessor:
             output_file = f"{self.config.RESULTS_FOLDER}/json/runpod_batch_results_{timestamp}.json"
         
         self.logger.info(f"🎯 Target output file: {output_file}")
-        self.logger.info(f"⏰ Using timestamp: {timestamp}")
+        
+        # 🔄 NEW: Load existing results and filter candidates
+        processed_ids = self._load_existing_results(output_file)
+        original_count = len(candidates)
+        
+        if force_reprocess:
+            self.logger.info("🔥 FORCE MODE: Processing all candidates (ignoring existing results)")
+            candidates = candidates  # Process all candidates
+            existing_results = []
+        else:
+            candidates = self._filter_unprocessed_candidates(candidates, processed_ids)
+            
+            if len(candidates) == 0:
+                self.logger.info("🎉 All candidates have already been processed!")
+                self.logger.info(f"📂 Results are in: {output_file}")
+                return output_file
+            
+            # Load existing results for continuation
+            existing_results = []
+            if processed_ids:
+                try:
+                    if Path(output_file).exists():
+                        with open(output_file, 'r', encoding='utf-8') as f:
+                            existing_data = json.load(f)
+                            existing_results = existing_data.get('results', [])
+                except Exception as e:
+                    self.logger.warning(f"⚠️ Could not load existing results: {e}")
+                    existing_results = []
+        
+        all_results = existing_results.copy()  # Start with existing results
         
         # Create initial JSON structure
         initial_output_data = {
             "metadata": {
-                "total_candidates": len(candidates),
-                "successful_analyses": 0,
-                "failed_analyses": 0,
+                "total_candidates": original_count,  # Use original count from CSV
+                "successful_analyses": len([r for r in existing_results if r.get('error') is None]),
+                "failed_analyses": len([r for r in existing_results if r.get('error') is not None]),
                 "processing_time_seconds": 0,
                 "average_rate_per_second": 0,
                 "job_requirements": job_requirements,
@@ -127,23 +155,30 @@ class RunPodBatchProcessor:
                 "batch_size": batch_size,
                 "concurrent_requests": self.concurrent_limit,
                 "timestamp": time.time(),
-                "status": "processing",
+                "status": "force_reprocessing" if force_reprocess else ("resuming" if existing_results else "processing"),
                 "batches_completed": 0,
-                "batches_total": (len(candidates) + batch_size - 1) // batch_size
+                "batches_total": (len(candidates) + batch_size - 1) // batch_size,
+                "already_processed": 0 if force_reprocess else len(existing_results),
+                "remaining_to_process": len(candidates)
             },
-            "results": [],
+            "results": existing_results,  # Include existing results
             "summary": {
-                "total_processed": 0,
-                "success_rate": 0,
+                "total_processed": len(existing_results),
+                "success_rate": (len([r for r in existing_results if r.get('error') is None]) / len(existing_results) * 100) if existing_results else 0,
                 "avg_processing_time_per_candidate": 0
             }
         }
         
-        # Create the initial JSON file
-        self._save_json_file(output_file, initial_output_data, "INITIAL")
+        # Create/update the JSON file
+        status = "FORCE" if force_reprocess else ("RESUME" if existing_results else "INITIAL")
+        self._save_json_file(output_file, initial_output_data, status)
         
         self.logger.info(f"⚡ Processing with {self.concurrent_limit} concurrent requests")
         self.logger.info(f"📦 Batch size: {batch_size} candidates per batch")
+        
+        if existing_results:
+            self.logger.info(f"🔄 RESUMING processing from {len(existing_results)} existing results")
+            self.logger.info(f"📊 Remaining: {len(candidates)} candidates to process")
         
         # Process in optimized batches
         total_batches = (len(candidates) + batch_size - 1) // batch_size
@@ -167,11 +202,12 @@ class RunPodBatchProcessor:
                 batch_time = time.time() - batch_start
                 processed = len(all_results)
                 total_elapsed = time.time() - start_time
-                rate = processed / total_elapsed if total_elapsed > 0 else 0
-                eta = (len(candidates) - processed) / rate if rate > 0 else 0
+                rate = len(candidates) / total_elapsed if total_elapsed > 0 else 0  # Rate for new candidates only
+                remaining = len(candidates) - (len(all_results) - len(existing_results))
+                eta = remaining / rate if rate > 0 else 0
                 
                 self.logger.info(f"✅ Batch {batch_num} complete in {batch_time:.1f}s")
-                self.logger.info(f"📈 Progress: {processed}/{len(candidates)} ({rate:.1f} candidates/sec)")
+                self.logger.info(f"📈 Progress: {processed}/{original_count} total ({processed - len(existing_results)}/{len(candidates)} new) ({rate:.1f} candidates/sec)")
                 self.logger.info(f"⏱️ ETA: {eta:.0f}s remaining")
                 self.logger.info(f"💾 JSON updated: {output_file}")
                 
@@ -204,15 +240,21 @@ class RunPodBatchProcessor:
         total_time = time.time() - start_time
         successful_results = [r for r in all_results if r.get('error') is None]
         failed_results = [r for r in all_results if r.get('error') is not None]
+        new_results = all_results[len(existing_results):]  # Only new results processed in this session
+        new_successful = [r for r in new_results if r.get('error') is None]
+        new_failed = [r for r in new_results if r.get('error') is not None]
         
         self.logger.info("🎉 Batch processing complete!")
-        self.logger.info(f"📊 Results Summary:")
-        self.logger.info(f"  • Total candidates: {len(candidates)}")
-        self.logger.info(f"  • Successful: {len(successful_results)}")
-        self.logger.info(f"  • Failed: {len(failed_results)}")
-        self.logger.info(f"  • Success rate: {len(successful_results)/len(candidates)*100:.1f}%")
-        self.logger.info(f"  • Total time: {total_time:.1f}s")
-        self.logger.info(f"  • Average rate: {len(candidates)/total_time:.1f} candidates/sec")
+        self.logger.info(f"📊 Final Results Summary:")
+        self.logger.info(f"  • Total candidates (CSV): {original_count}")
+        self.logger.info(f"  • Already processed: {len(existing_results)}")
+        self.logger.info(f"  • Processed this session: {len(new_results)}")
+        self.logger.info(f"  • New successful: {len(new_successful)}")
+        self.logger.info(f"  • New failed: {len(new_failed)}")
+        self.logger.info(f"  • Overall success rate: {len(successful_results)/len(all_results)*100:.1f}%")
+        self.logger.info(f"  • Session processing time: {total_time:.1f}s")
+        if len(new_results) > 0:
+            self.logger.info(f"  • Session processing rate: {len(new_results)/total_time:.1f} candidates/sec")
         self.logger.info(f"💾 Final results saved to: {output_file}")
         
         return output_file
@@ -353,17 +395,27 @@ class RunPodBatchProcessor:
                                         job_requirements: Dict[str, Any], batch_num: int, total_batches: int, 
                                         start_time: float, timestamp: int):
         """Updates the JSON file with results from the current batch."""
+        # Load the original count and existing results count
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                existing_data = json.load(f)
+                original_count = existing_data.get('metadata', {}).get('total_candidates', len(all_results))
+                already_processed = existing_data.get('metadata', {}).get('already_processed', 0)
+        except:
+            original_count = len(all_results)
+            already_processed = 0
+        
         processed = len(all_results)
         successful = [r for r in all_results if r.get('error') is None]
         failed = [r for r in all_results if r.get('error') is not None]
         
         current_output_data = {
             "metadata": {
-                "total_candidates": len(candidates),
+                "total_candidates": original_count,
                 "successful_analyses": len(successful),
                 "failed_analyses": len(failed),
                 "processing_time_seconds": time.time() - start_time,
-                "average_rate_per_second": processed / (time.time() - start_time) if (time.time() - start_time) > 0 else 0,
+                "average_rate_per_second": (processed - already_processed) / (time.time() - start_time) if (time.time() - start_time) > 0 else 0,
                 "job_requirements": job_requirements,
                 "model_used": self.config.MODEL_NAME,
                 "pod_id": self.config.RUNPOD_POD_ID,
@@ -372,13 +424,15 @@ class RunPodBatchProcessor:
                 "timestamp": time.time(),
                 "status": "processing",
                 "batches_completed": batch_num,
-                "batches_total": total_batches
+                "batches_total": total_batches,
+                "already_processed": already_processed,
+                "remaining_to_process": len(candidates) - (processed - already_processed)
             },
             "results": all_results,
             "summary": {
                 "total_processed": processed,
                 "success_rate": len(successful) / processed * 100 if processed > 0 else 0,
-                "avg_processing_time_per_candidate": (time.time() - start_time) / processed if processed > 0 else 0
+                "avg_processing_time_per_candidate": (time.time() - start_time) / (processed - already_processed) if (processed - already_processed) > 0 else 0
             }
         }
         self._save_json_file(file_path, current_output_data, f"BATCH_{batch_num}")
@@ -386,17 +440,27 @@ class RunPodBatchProcessor:
     async def _finalize_json_file(self, file_path: str, all_results: List[Dict[str, Any]], candidates: List[Dict[str, Any]], 
                                    job_requirements: Dict[str, Any], start_time: float, timestamp: int):
         """Finalizes the JSON file by marking completion and adding final metrics."""
+        # Load the original count and existing results count
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                existing_data = json.load(f)
+                original_count = existing_data.get('metadata', {}).get('total_candidates', len(all_results))
+                already_processed = existing_data.get('metadata', {}).get('already_processed', 0)
+        except:
+            original_count = len(all_results)
+            already_processed = 0
+            
         processed = len(all_results)
         successful = [r for r in all_results if r.get('error') is None]
         failed = [r for r in all_results if r.get('error') is not None]
         
         final_output_data = {
             "metadata": {
-                "total_candidates": len(candidates),
+                "total_candidates": original_count,
                 "successful_analyses": len(successful),
                 "failed_analyses": len(failed),
                 "processing_time_seconds": time.time() - start_time,
-                "average_rate_per_second": processed / (time.time() - start_time) if (time.time() - start_time) > 0 else 0,
+                "average_rate_per_second": (processed - already_processed) / (time.time() - start_time) if (time.time() - start_time) > 0 else 0,
                 "job_requirements": job_requirements,
                 "model_used": self.config.MODEL_NAME,
                 "pod_id": self.config.RUNPOD_POD_ID,
@@ -405,16 +469,90 @@ class RunPodBatchProcessor:
                 "timestamp": time.time(),
                 "status": "completed",
                 "batches_completed": (len(candidates) + self.config.BATCH_SIZE - 1) // self.config.BATCH_SIZE,
-                "batches_total": (len(candidates) + self.config.BATCH_SIZE - 1) // self.config.BATCH_SIZE
+                "batches_total": (len(candidates) + self.config.BATCH_SIZE - 1) // self.config.BATCH_SIZE,
+                "already_processed": already_processed,
+                "session_processed": processed - already_processed
             },
             "results": all_results,
             "summary": {
                 "total_processed": processed,
                 "success_rate": len(successful) / processed * 100 if processed > 0 else 0,
-                "avg_processing_time_per_candidate": (time.time() - start_time) / processed if processed > 0 else 0
+                "avg_processing_time_per_candidate": (time.time() - start_time) / (processed - already_processed) if (processed - already_processed) > 0 else 0
             }
         }
         self._save_json_file(file_path, final_output_data, "FINAL")
+
+    def _load_existing_results(self, output_file: str) -> List[str]:
+        """Load existing results and return list of processed candidate IDs"""
+        processed_ids = set()
+        
+        # Check if the specified output file exists
+        if Path(output_file).exists():
+            try:
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+                    results = existing_data.get('results', [])
+                    for result in results:
+                        candidate_id = result.get('candidate_id')
+                        if candidate_id:
+                            processed_ids.add(candidate_id)
+                    
+                self.logger.info(f"📂 Found existing output file: {output_file}")
+                self.logger.info(f"✅ Already processed: {len(processed_ids)} candidates")
+                return list(processed_ids)
+            except Exception as e:
+                self.logger.warning(f"⚠️ Could not read existing file {output_file}: {e}")
+        
+        # Also check for other JSON files in results folder
+        results_dir = Path(self.config.RESULTS_FOLDER) / "json"
+        if results_dir.exists():
+            json_files = list(results_dir.glob("*.json"))
+            if json_files:
+                self.logger.info(f"🔍 Found {len(json_files)} existing JSON files in results folder")
+                
+                for json_file in json_files:
+                    try:
+                        with open(json_file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            results = data.get('results', [])
+                            for result in results:
+                                candidate_id = result.get('candidate_id')
+                                if candidate_id:
+                                    processed_ids.add(candidate_id)
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Could not read {json_file}: {e}")
+                        continue
+                
+                if processed_ids:
+                    self.logger.info(f"✅ Total processed candidates found: {len(processed_ids)}")
+                    # Show some examples
+                    sample_ids = list(processed_ids)[:5]
+                    self.logger.info(f"📋 Sample processed IDs: {sample_ids}")
+        
+        return list(processed_ids)
+    
+    def _filter_unprocessed_candidates(self, candidates: List[Dict[str, Any]], processed_ids: List[str]) -> List[Dict[str, Any]]:
+        """Filter out candidates that have already been processed"""
+        if not processed_ids:
+            return candidates
+        
+        processed_set = set(processed_ids)
+        unprocessed = []
+        skipped_count = 0
+        
+        for candidate in candidates:
+            candidate_id = candidate.get('id') or candidate.get('ID')
+            if candidate_id and candidate_id in processed_set:
+                skipped_count += 1
+            else:
+                unprocessed.append(candidate)
+        
+        self.logger.info(f"🔄 Filtering results:")
+        self.logger.info(f"   📊 Total candidates: {len(candidates)}")
+        self.logger.info(f"   ✅ Already processed: {skipped_count}")
+        self.logger.info(f"   🔄 Remaining to process: {len(unprocessed)}")
+        
+        return unprocessed
 
 def test_file_creation():
     """Test function to verify file creation works in the environment"""
@@ -484,6 +622,7 @@ def main():
     parser.add_argument("--experience-level", default="Mid-level", help="Experience level")
     parser.add_argument("--education", default="Bachelor's degree preferred", help="Education requirements")
     parser.add_argument("--test", action="store_true", help="Run file creation test only")
+    parser.add_argument("--force", action="store_true", help="Force processing all candidates (skip resume functionality)")
     
     args = parser.parse_args()
     
@@ -536,7 +675,8 @@ def main():
             result_file = await processor.process_batch_file(
                 args.input,
                 job_requirements,
-                args.output
+                args.output,
+                force_reprocess=args.force
             )
             
             if result_file:
