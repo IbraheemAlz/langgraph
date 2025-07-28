@@ -42,47 +42,116 @@ def check_ollama_service():
     return False
 
 def start_ollama():
-    """Start Ollama service if not running"""
+    """Start Ollama service with H100 GPU optimization"""
     logger = logging.getLogger(__name__)
     
     if check_ollama_service():
         return True
     
-    logger.info("🚀 Starting Ollama service...")
+    logger.info("🚀 Starting Ollama service with H100 GPU optimization...")
     
     try:
-        # Start Ollama in background with H100 optimizations
+        # H100 GPU-optimized environment variables (based on fix_gpu.sh)
         env = dict(os.environ)
         env.update({
+            # Basic Ollama settings
             "OLLAMA_HOST": "0.0.0.0",
             "OLLAMA_PORT": "11434",
             "OLLAMA_ORIGINS": "*",
-            "OLLAMA_NUM_PARALLEL": "12",        # H100 parallel processing
-            "OLLAMA_MAX_LOADED_MODELS": "1",   # Load single model efficiently
-            "OLLAMA_FLASH_ATTENTION": "1",     # Enable flash attention for H100
-            "CUDA_VISIBLE_DEVICES": "0"       # Use single H100 GPU
+            
+            # H100 GPU optimization settings
+            "CUDA_VISIBLE_DEVICES": "0",           # Use H100 GPU
+            "OLLAMA_GPU_OVERHEAD": "0",            # Minimize GPU overhead
+            "OLLAMA_NUM_GPU": "1",                 # Use single H100
+            "OLLAMA_MAX_LOADED_MODELS": "1",       # Single model for efficiency
+            "OLLAMA_MAX_QUEUE": "512",             # Large queue for H100
+            "OLLAMA_NUM_PARALLEL": "4",            # Optimal for H100
+            
+            # Memory optimization for H100 (80GB VRAM)
+            "OLLAMA_MAX_VRAM": "75000000000",      # 75GB out of 80GB
+            "OLLAMA_GPU_MEMORY_FRACTION": "0.95",  # Use 95% of GPU memory
+            
+            # CUDA optimizations
+            "CUDA_LAUNCH_BLOCKING": "0",           # Async CUDA calls
+            "CUDA_CACHE_DISABLE": "0",             # Enable CUDA cache
+            
+            # Performance optimizations
+            "OLLAMA_FLASH_ATTENTION": "1",         # Enable flash attention
+            "OLLAMA_NUM_THREAD": "16",             # Optimize CPU threads
         })
         
+        logger.info("🎯 Starting Ollama with H100-optimized environment...")
         process = subprocess.Popen(
-            ['ollama', 'serve'],
+            ['/usr/local/bin/ollama', 'serve'],  # Use full path for reliability
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env
         )
         
-        # Wait for service to start
+        # Wait for service to start with better logging
+        logger.info("⏳ Waiting for Ollama GPU initialization...")
         for i in range(30):
             time.sleep(2)
             if check_ollama_service():
-                logger.info("✅ Ollama service started successfully")
+                logger.info("✅ Ollama service started with GPU optimization")
+                
+                # Force model preload with GPU optimization
+                logger.info("🔄 Preloading model with GPU optimization...")
+                force_gpu_model_load()
+                
                 return True
-            logger.info(f"⏳ Waiting for Ollama to start... ({i+1}/30)")
+            logger.info(f"⏳ GPU initialization in progress... ({i+1}/30)")
         
-        logger.error("❌ Failed to start Ollama service")
+        logger.error("❌ Failed to start Ollama service with GPU optimization")
         return False
         
     except Exception as e:
-        logger.error(f"❌ Error starting Ollama: {e}")
+        logger.error(f"❌ Error starting Ollama with GPU optimization: {e}")
+        return False
+
+def force_gpu_model_load():
+    """Force model to load with GPU optimization"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info("🔄 Forcing model reload with full GPU utilization...")
+        
+        # First, unload any existing model
+        response = requests.post(
+            'http://localhost:11434/api/generate',
+            json={
+                'model': 'gemma3:27b',
+                'keep_alive': 0  # Unload model
+            },
+            timeout=10
+        )
+        time.sleep(2)
+        
+        # Force reload with GPU optimization
+        response = requests.post(
+            'http://localhost:11434/api/generate',
+            json={
+                'model': 'gemma3:27b',
+                'prompt': 'Initialize GPU',
+                'options': {
+                    'num_gpu': 99,                    # Force all layers to GPU
+                    'gpu_memory_utilization': 0.95,  # Use 95% GPU memory
+                    'num_thread': 1                   # Minimal CPU threads
+                },
+                'stream': False
+            },
+            timeout=60
+        )
+        
+        if response.status_code == 200:
+            logger.info("✅ Model loaded with full GPU optimization")
+            return True
+        else:
+            logger.warning(f"⚠️ Model load response: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Error during GPU model preload: {e}")
         return False
 
 def check_model():
