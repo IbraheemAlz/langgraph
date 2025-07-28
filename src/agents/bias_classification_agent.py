@@ -54,7 +54,10 @@ class BiasClassificationAgent:
                 "num_thread": 1,                             # Minimal CPU threads for GPU mode
                 "use_mlock": False,                          # Disable to avoid warnings
                 "use_mmap": True,                            # Memory mapping for speed
-                "numa": False                                # Disable NUMA for single GPU
+                "numa": False,                               # Disable NUMA for single GPU
+                "max_tokens": self.config.MAX_TOKENS,        # 🚀 Add explicit token limit
+                "repeat_penalty": 1.0,                      # 🚀 Disable penalty for speed
+                "top_k": 20                                  # 🚀 Reduce top_k for faster sampling
             }
         }
         
