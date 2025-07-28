@@ -51,14 +51,21 @@ class RunPodBatchProcessor:
             df = pd.read_csv(input_file)
             candidates = df.to_dict('records')
             
-            # Enrich candidate data with dataset_index if not present
+            # Enrich candidate data with dataset_index and proper ID mapping
             for i, candidate in enumerate(candidates):
                 if 'dataset_index' not in candidate:
                     candidate['dataset_index'] = i
-                if 'id' not in candidate:
-                    candidate['id'] = f"candidate_{i}"
+                
+                # Handle ID mapping - CSV has 'ID' (uppercase), API expects 'id' (lowercase)
+                if 'ID' in candidate and candidate['ID']:
+                    candidate['id'] = candidate['ID']  # Map CSV 'ID' to API 'id'
+                    self.logger.debug(f"Mapped ID: {candidate['ID']} → {candidate['id']}")
+                elif 'id' not in candidate:
+                    candidate['id'] = f"candidate_{i}"  # Fallback for missing ID
+                    self.logger.debug(f"Generated fallback ID: {candidate['id']}")
             
             self.logger.info(f"📊 Loaded {len(candidates)} candidates")
+            self.logger.info(f"🔍 Sample IDs: {[c.get('id', 'missing') for c in candidates[:3]]}")  # Show first 3 IDs
         except Exception as e:
             self.logger.error(f"❌ Failed to load input file: {e}")
             return None
@@ -234,6 +241,10 @@ class RunPodBatchProcessor:
     
     async def _analyze_candidate_api(self, candidate: Dict[str, Any], job_requirements: Dict[str, Any]):
         """Make API call to analyze single candidate with retry logic"""
+        
+        # Debug: Log candidate ID being sent to API
+        candidate_id = candidate.get('id', 'missing')
+        self.logger.debug(f"🔄 API call for candidate ID: {candidate_id}")
         
         max_retries = 3
         for attempt in range(max_retries):

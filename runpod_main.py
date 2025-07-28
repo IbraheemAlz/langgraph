@@ -267,6 +267,12 @@ async def analyze_candidate(request: Dict[str, Any]):
         primary_reason = job_analysis.get('primary_reason', 'No reason provided')
         specific_feedback = bias_analysis.get('specific_feedback', '')
         
+        # Debug: Log candidate ID processing
+        if candidate_id == 'unknown':
+            logger.warning(f"⚠️ No ID found in candidate_data: {list(candidate_data.keys())}")
+        else:
+            logger.debug(f"✅ Processing candidate ID: {candidate_id}")
+        
         # Build evaluation insights structure
         evaluation_insight = {
             "evaluation_number": 1,
