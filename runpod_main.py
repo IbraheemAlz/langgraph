@@ -23,6 +23,7 @@ sys.path.append(str(Path(__file__).parent / 'src'))
 from src.config import Config
 from src.agents.job_matching_agent import JobMatchingAgent
 from src.agents.bias_classification_agent import BiasClassificationAgent
+from src.main import create_hiring_workflow
 
 # Configure logging
 logging.basicConfig(
@@ -53,15 +54,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables for agents
+# Global variables for agents and workflow
 job_agent = None
 bias_agent = None
+hiring_workflow = None
 startup_time = None
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize agents and services on startup"""
-    global job_agent, bias_agent, startup_time
+    global job_agent, bias_agent, hiring_workflow, startup_time
     
     startup_time = time.time()
     
@@ -76,10 +78,12 @@ async def startup_event():
         # Wait for Ollama to be ready
         await wait_for_ollama()
         
-        # Initialize agents
-        logger.info("🔧 Initializing agents...")
+        # Initialize agents and workflow
+        logger.info("🔧 Initializing agents and workflow...")
         job_agent = JobMatchingAgent()
         bias_agent = BiasClassificationAgent()
+        hiring_workflow = create_hiring_workflow()
+        logger.info("✅ LangGraph workflow initialized with re-evaluation logic")
         
         # Ensure results directory exists
         Path(Config.RESULTS_FOLDER).mkdir(parents=True, exist_ok=True)
@@ -185,7 +189,7 @@ async def health_check():
             pass
         
         health_status = {
-            "status": "healthy" if ollama_healthy and job_agent and bias_agent else "degraded",
+            "status": "healthy" if ollama_healthy and hiring_workflow else "degraded",
             "timestamp": time.time(),
             "uptime_seconds": time.time() - startup_time if startup_time else 0,
             "services": {
@@ -193,6 +197,7 @@ async def health_check():
                     "status": "healthy" if ollama_healthy else "unhealthy",
                     "error": ollama_error
                 },
+                "hiring_workflow": "ready" if hiring_workflow else "not_initialized",
                 "job_agent": "ready" if job_agent else "not_initialized",
                 "bias_agent": "ready" if bias_agent else "not_initialized"
             },
@@ -221,10 +226,10 @@ async def health_check():
 
 @app.post("/analyze_candidate")
 async def analyze_candidate(request: Dict[str, Any]):
-    """Analyze a single candidate with job matching and bias detection"""
+    """Analyze a single candidate with job matching, bias detection, and re-evaluation workflow"""
     
-    if not job_agent or not bias_agent:
-        raise HTTPException(status_code=503, detail="Agents not initialized")
+    if not hiring_workflow:
+        raise HTTPException(status_code=503, detail="Workflow not initialized")
     
     try:
         candidate_data = request.get('candidate_data', {})
@@ -236,53 +241,62 @@ async def analyze_candidate(request: Dict[str, Any]):
             if field not in candidate_data:
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
-        # Job matching analysis
-        start_time = time.time()
-        job_analysis = job_agent.run(
-            Resume=candidate_data['Resume'],
-            Job_Description=candidate_data['Job_Description'],
-            Transcript=candidate_data['Transcript'],
-            Role=candidate_data['Role']
-        )
-        job_time = time.time() - start_time
-        
-        # Bias analysis
-        bias_start = time.time()
-        bias_analysis = bias_agent.run(
-            Resume=candidate_data['Resume'],
-            Job_Description=candidate_data['Job_Description'],
-            Transcript=candidate_data['Transcript'],
-            decision=job_analysis.get('decision', 'unknown'),
-            Role=candidate_data['Role'],
-            primary_reason=job_analysis.get('primary_reason', '')
-        )
-        bias_time = time.time() - bias_start
-        
-        total_time = time.time() - start_time
-        
-        # Extract key data
+        # Extract candidate ID for logging
         candidate_id = candidate_data.get('id', 'unknown')
-        final_decision = job_analysis.get('decision', 'reject')
-        bias_classification = bias_analysis.get('classification', 'unbiased')
-        primary_reason = job_analysis.get('primary_reason', 'No reason provided')
-        specific_feedback = bias_analysis.get('specific_feedback', '')
-        
-        # Debug: Log candidate ID processing
         if candidate_id == 'unknown':
             logger.warning(f"⚠️ No ID found in candidate_data: {list(candidate_data.keys())}")
         else:
             logger.debug(f"✅ Processing candidate ID: {candidate_id}")
         
-        # Build evaluation insights structure
-        evaluation_insight = {
-            "evaluation_number": 1,
+        # Run the complete LangGraph workflow with re-evaluation logic
+        start_time = time.time()
+        
+        # Prepare initial state for the workflow
+        initial_state = {
+            "Resume": candidate_data['Resume'],
+            "Job_Description": candidate_data['Job_Description'],
+            "Transcript": candidate_data['Transcript'],
+            "Role": candidate_data['Role'],
+            "re_evaluation_count": 0,
+            "evaluation_insights": [],
+            "process_complete": False
+        }
+        
+        # Run the workflow - this handles all re-evaluations automatically
+        final_state = hiring_workflow.invoke(initial_state)
+        
+        total_time = time.time() - start_time
+        
+        # Extract results from the final state
+        final_decision = final_state.get('decision', 'reject')
+        bias_classification = final_state.get('bias_classification', 'unbiased')
+        primary_reason = final_state.get('primary_reason', 'No reason provided')
+        re_evaluation_count = final_state.get('re_evaluation_count', 0)
+        evaluation_insights = final_state.get('evaluation_insights', [])
+        
+        # Count feedback iterations
+        job_feedback_count = len([e for e in evaluation_insights if e.get('agent') == 'job_matching'])
+        bias_feedback_count = len([e for e in evaluation_insights if e.get('classification')])
+        
+        # Extract specific feedback from the latest bias classification
+        specific_feedback = ''
+        for insight in reversed(evaluation_insights):
+            if insight.get('specific_feedback'):
+                specific_feedback = insight['specific_feedback']
+                break
+        
+        # Create legacy format for compatibility
+        job_analysis = {
             "decision": final_decision,
-            "primary_reason": primary_reason,
-            "agent": "job_matching",
-            "is_re_evaluation": False,
+            "primary_reason": primary_reason
+        }
+        
+        bias_analysis = {
             "classification": bias_classification,
             "specific_feedback": specific_feedback
         }
+        
+        logger.info(f"🎯 Workflow completed for {candidate_id}: {final_decision} (bias: {bias_classification}, re-evals: {re_evaluation_count})")
         
         return {
             "candidate_id": candidate_id,
@@ -290,20 +304,20 @@ async def analyze_candidate(request: Dict[str, Any]):
             "role": candidate_data.get('Role', job_requirements.get('title', 'Unknown Role')),
             "final_decision": final_decision,
             "bias_classification": bias_classification,
-            "re_evaluation_count": 0,
-            "evaluation_insights": [evaluation_insight],
+            "re_evaluation_count": re_evaluation_count,
+            "evaluation_insights": evaluation_insights,
             "processing_time": time.strftime('%Y-%m-%dT%H:%M:%S.%f', time.gmtime()),
-            "workflow_completed": True,
-            "job_feedback_count": 1,
-            "bias_feedback_count": 1,
+            "workflow_completed": final_state.get('process_complete', True),
+            "job_feedback_count": job_feedback_count,
+            "bias_feedback_count": bias_feedback_count,
             "ground_truth_decision": candidate_data.get('ground_truth_decision', final_decision),
             "ground_truth_bias": candidate_data.get('ground_truth_bias', bias_classification),
             # Legacy fields for compatibility
             "job_match": job_analysis,
             "bias_analysis": bias_analysis,
             "processing_time_seconds": {
-                "job_analysis_seconds": job_time,
-                "bias_analysis_seconds": bias_time,
+                "job_analysis_seconds": 0,  # Not tracked separately in workflow
+                "bias_analysis_seconds": 0,  # Not tracked separately in workflow
                 "total_seconds": total_time
             },
             "timestamp": time.time()
@@ -375,33 +389,50 @@ async def batch_analyze(request: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=f"Batch analysis failed: {str(e)}")
 
 async def analyze_single_candidate_async(candidate_data: Dict[str, Any], job_requirements: Dict[str, Any]):
-    """Async wrapper for candidate analysis"""
+    """Async wrapper for candidate analysis using workflow"""
     loop = asyncio.get_event_loop()
     
     try:
-        # Run in thread pool to avoid blocking
-        job_analysis = await loop.run_in_executor(
-            None, 
-            job_agent.run,
-            candidate_data['Resume'],
-            candidate_data['Job_Description'], 
-            candidate_data['Transcript'],
-            candidate_data['Role']
+        # Prepare initial state for the workflow
+        initial_state = {
+            "Resume": candidate_data['Resume'],
+            "Job_Description": candidate_data['Job_Description'],
+            "Transcript": candidate_data['Transcript'],
+            "Role": candidate_data['Role'],
+            "re_evaluation_count": 0,
+            "evaluation_insights": [],
+            "process_complete": False
+        }
+        
+        # Run the workflow in thread pool to avoid blocking
+        final_state = await loop.run_in_executor(
+            None,
+            hiring_workflow.invoke,
+            initial_state
         )
         
-        bias_analysis = await loop.run_in_executor(
-            None,
-            bias_agent.run,
-            candidate_data['Resume'],
-            candidate_data['Job_Description'],
-            candidate_data['Transcript'],
-            job_analysis.get('decision', 'unknown'),
-            candidate_data['Role'],
-            job_analysis.get('primary_reason', '')
-        )
+        # Extract results from final state
+        final_decision = final_state.get('decision', 'reject')
+        bias_classification = final_state.get('bias_classification', 'unbiased')
+        primary_reason = final_state.get('primary_reason', 'No reason provided')
+        re_evaluation_count = final_state.get('re_evaluation_count', 0)
+        
+        # Create legacy format for compatibility
+        job_analysis = {
+            "decision": final_decision,
+            "primary_reason": primary_reason
+        }
+        
+        bias_analysis = {
+            "classification": bias_classification,
+            "specific_feedback": final_state.get('bias_feedback', '')
+        }
         
         return {
             "candidate_id": candidate_data.get('id', 'unknown'),
+            "final_decision": final_decision,
+            "bias_classification": bias_classification,
+            "re_evaluation_count": re_evaluation_count,
             "job_match": job_analysis,
             "bias_analysis": bias_analysis,
             "timestamp": time.time()
