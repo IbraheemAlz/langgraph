@@ -5,6 +5,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from ..config import Config, PROMPTS
 from ..rate_limiter import rate_limited
+import time
+import re
+import json
 
 load_dotenv()
 
@@ -36,6 +39,54 @@ class BiasClassificationAgent:
     def _invoke_llm_chain(self, chain, params):
         """Rate-limited LLM chain invocation."""
         return chain.invoke(params)
+
+    def _extract_retry_delay_from_error(self, error_message: str) -> int:
+        """Extract retry delay from Google API error message."""
+        try:
+            # Look for retry_delay seconds in the error message
+            match = re.search(r'retry_delay\s*{\s*seconds:\s*(\d+)', str(error_message))
+            if match:
+                return int(match.group(1))
+            
+            # Fallback: look for other delay patterns
+            match = re.search(r'wait\s+(\d+)\s+seconds?', str(error_message), re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+                
+        except Exception as e:
+            print(f"Could not extract retry delay from error: {e}")
+        
+        return None
+
+    def _smart_retry_llm_call(self, chain, params):
+        """Smart retry function that respects Google's suggested delays."""
+        max_retries = 3
+        default_delay = 20
+        
+        for attempt in range(max_retries):
+            try:
+                return self._invoke_llm_chain(chain, params)
+            except Exception as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    raise e
+                
+                # Extract suggested delay from Google's error message
+                suggested_delay = self._extract_retry_delay_from_error(str(e))
+                delay = suggested_delay if suggested_delay is not None else default_delay
+                
+                # Add a small buffer to the suggested delay
+                actual_delay = delay + 5 if suggested_delay else delay
+                
+                print(f"⚠️ Bias Classification attempt {attempt + 1} failed: {str(e)[:200]}...")
+                if suggested_delay:
+                    print(f"🕒 Google suggests waiting {suggested_delay}s, using {actual_delay}s")
+                else:
+                    print(f"🕒 Using default delay of {actual_delay}s")
+                
+                print(f"🔁 Retrying in {actual_delay} seconds...")
+                time.sleep(actual_delay)
+        
+        return None
 
     def run(self, Resume: str, Job_Description: str, Transcript: str, decision: str, Role: str = "", 
             primary_reason: str = "", original_decision: str = "", previous_feedback: str = "") -> dict:
@@ -82,7 +133,7 @@ class BiasClassificationAgent:
                     "primary_reason": primary_reason
                 }
             
-            response = self._invoke_llm_chain(chain, params)
+            response = self._smart_retry_llm_call(chain, params)
             
             # Log the response for debugging (only if bias is detected)
             result_preview = self._parse_bias_response(response.content)
@@ -96,7 +147,7 @@ class BiasClassificationAgent:
             return result_preview
                 
         except Exception as e:
-            print(f"❌ Error in bias classification: {str(e)}")
+            print(f"❌ Error in bias classification after all retries: {str(e)}")
             # Default to unbiased in case of error to avoid false positives
             return {
                 "classification": Config.DEFAULT_BIAS_ON_ERROR,

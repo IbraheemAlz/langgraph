@@ -97,12 +97,14 @@ def job_matching_node(state: HiringState) -> dict:
         evaluation_insights.append({
             "evaluation_number": state.get("re_evaluation_count", 0) + 1,
             "decision": "reject",
+            "primary_reason": "Error in evaluation process",
             "agent": "job_matching",
             "is_re_evaluation": state.get("re_evaluation_count", 0) > 0,
             "error": str(e)
         })
         return {
             "decision": "reject",
+            "primary_reason": "Error in evaluation process",
             "evaluation_insights": evaluation_insights
         }
 

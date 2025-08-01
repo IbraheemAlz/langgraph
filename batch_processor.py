@@ -67,7 +67,7 @@ def process_candidate(workflow, candidate_data: dict, candidate_num: int, total:
         # Configure workflow for this candidate
         config = {"configurable": {"thread_id": f"candidate_{candidate_id}_{candidate_num}"}}
         
-        # Run the workflow
+        # Run the workflow - retry logic is now handled within the agents
         result = workflow.invoke(candidate_data, config)
         
         # Extract core results from workflow response
@@ -118,7 +118,6 @@ def process_candidate(workflow, candidate_data: dict, candidate_num: int, total:
         logger.error(f"❌ Error processing {candidate_id}: {e}")
         
         # Return error record
-        # Create clean error record
         error_record = {
             "candidate_id": candidate_id,
             "dataset_index": dataset_index,
@@ -285,7 +284,7 @@ def print_summary(results: list):
 def main():
     """Main batch processing function."""
     parser = argparse.ArgumentParser(description="Process hiring candidates in batch")
-    parser.add_argument("--csv", default="sample-data.csv", help="CSV file path")
+    parser.add_argument("--csv", default="filtered_10K_labled_json_local.csv", help="CSV file path")
     parser.add_argument("--max-rows", type=int, help="Maximum rows to process")
     parser.add_argument("--output", default="results/json/batch_results.json", help="Output JSON file")
     parser.add_argument("--rate-limit", type=int, default=5, help="Requests per minute")
