@@ -114,10 +114,19 @@ class HiringSystemChartGenerator:
                 axes[1, 0].text(bar.get_x() + bar.get_width()/2., height + max(attempt_counts.values) * 0.01,
                                f'{count}\n({percentage:.1f}%)', ha='center', va='bottom', fontweight='bold', fontsize=10)
             
-            # Add equation
-            axes[1, 0].text(0.5, -0.25, 'Formula: Count of candidates by (re_evaluation_count + 1)', 
+            # Add mathematical equation with actual numbers - improved formatting
+            total_1st = attempt_counts.get(1, 0)
+            total_2nd = attempt_counts.get(2, 0) 
+            total_3rd = attempt_counts.get(3, 0)
+            
+            pct_1st = (total_1st / total_decisions * 100) if total_1st > 0 else 0
+            pct_2nd = (total_2nd / total_decisions * 100) if total_2nd > 0 else 0
+            pct_3rd = (total_3rd / total_decisions * 100) if total_3rd > 0 else 0
+            
+            formula_text = f"Distribution: 1st={total_1st}({pct_1st:.1f}%) | 2nd={total_2nd}({pct_2nd:.1f}%) | 3rd={total_3rd}({pct_3rd:.1f}%)"
+            axes[1, 0].text(0.5, -0.15, formula_text, 
                            ha='center', va='center', transform=axes[1, 0].transAxes,
-                           fontsize=10, style='italic', bbox=dict(boxstyle="round,pad=0.3", facecolor='lightyellow', alpha=0.3))
+                           fontsize=8, style='italic', bbox=dict(boxstyle="round,pad=0.4", facecolor='lightyellow', alpha=0.8))
             
             # 4. System Accuracy (Bottom Right)
             if 'ground_truth_decision' in df.columns and 'ground_truth_bias' in df.columns:
@@ -164,10 +173,11 @@ class HiringSystemChartGenerator:
                                        f'{value:.1%}\n({count}/{total_decisions})', ha='center', va='bottom', 
                                        fontweight='bold', fontsize=10)
                 
-                # Add equation - keeping correction score calculation
-                axes[1, 1].text(0.5, -0.2, 'Correction Score: 3/3 biased cases corrected', 
+                # Add mathematical equation with actual numbers - improved formatting
+                correction_formula = f'Correction Score = {len(correction_cases)} ÷ {total_biased_cases} = {correction_score:.3f}'
+                axes[1, 1].text(0.5, -0.15, correction_formula, 
                                ha='center', va='center', transform=axes[1, 1].transAxes,
-                               fontsize=10, style='italic', bbox=dict(boxstyle="round,pad=0.3", facecolor='lightcoral', alpha=0.3))
+                               fontsize=9, style='italic', bbox=dict(boxstyle="round,pad=0.4", facecolor='lightcoral', alpha=0.8))
             else:
                 # Fallback if no ground truth
                 axes[1, 1].text(0.5, 0.5, 'Ground Truth\nNot Available', 
@@ -176,8 +186,8 @@ class HiringSystemChartGenerator:
                 axes[1, 1].set_title('System Accuracy', fontweight='bold', fontsize=14)
                 axes[1, 1].set_facecolor('#f8f9fa')
             
-            # Adjust spacing between subplots
-            plt.subplots_adjust(left=0.08, bottom=0.08, right=0.95, top=0.88, wspace=0.25, hspace=0.4)
+            # Adjust spacing between subplots - increased bottom margin for formulas
+            plt.subplots_adjust(left=0.08, bottom=0.12, right=0.95, top=0.88, wspace=0.25, hspace=0.45)
             plt.savefig(output_file, dpi=300, bbox_inches='tight')
             print(f"📈 Enhanced evaluation charts saved to: {output_file}")
             plt.close()  # Close instead of show to prevent blocking
