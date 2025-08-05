@@ -279,7 +279,7 @@ class HiringSystemChartGenerator:
                        bbox=dict(boxstyle="round,pad=0.2", facecolor='white', alpha=0.9))
         
         # Add system information box
-        info_text = """🤖 LangGraph Multi-Agent System Features:
+        info_text = """[SYSTEM] LangGraph Multi-Agent System Features:
 • State Management: InMemorySaver with checkpointing
 • Max Re-evaluations: 2 attempts per candidate
 • Model: Google Gemma 3 (27B-IT) via API
@@ -291,7 +291,7 @@ class HiringSystemChartGenerator:
                facecolor='lightblue', alpha=0.8), fontfamily='monospace')
         
         # Add conditional logic explanation
-        logic_text = """🔀 Conditional Logic:
+        logic_text = """[LOGIC] Conditional Logic:
 should_continue() checks:
 1. Bias classification result
 2. Current re-evaluation count
@@ -312,161 +312,7 @@ should_continue() checks:
         plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
         print(f"🔄 Enhanced workflow diagram saved to: {save_path}")
         plt.close()
-    
-    def create_system_architecture_diagram(self, save_path: str = "results/images/system_architecture.png"):
-        """Create a comprehensive system architecture diagram reflecting current implementation."""
-        # Ensure output directory exists
-        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        # Significantly larger figure size for better spacing
-        fig, ax = plt.subplots(1, 1, figsize=(20, 16))
-        fig.patch.set_facecolor('white')
-        
-        # Define components and their positions with much better spacing
-        components = {
-            # Input layer (Top) - spread wider
-            "Resume": (2, 13),
-            "Job Description": (5, 13),
-            "Interview Transcript": (8, 13),
-            "Role": (11, 13),
-            
-            # API Management Layer - better spacing
-            "API Key Manager": (1, 11),
-            "Rate Limiter": (7, 11),
-            
-            # Agent layer - more separation
-            "Job Matching Agent": (3, 9),
-            "Bias Classification Agent": (9, 9),
-            
-            # LLM layer (Updated to Gemma) - center position
-            "Google Gemma 3\n(27B-IT)": (6, 7),
-            
-            # LangGraph Core - spread horizontally
-            "LangGraph StateGraph": (6, 5),
-            "InMemorySaver\nCheckpointer": (10, 5),
-            "Conditional Routing\n(should_continue)": (2, 5),
-            
-            # State Management - better horizontal spacing
-            "HiringState\nManagement": (6, 3),
-            "Evaluation Insights\nTracking": (2, 3),
-            "Re-evaluation\nCounter": (10, 3),
-            
-            # Output layer (Bottom) - spread across width
-            "Final Decision": (2, 1),
-            "Bias Classification": (5, 1),
-            "Audit Trail": (8, 1),
-            "Process Metadata": (11, 1)
-        }
-        
-        # Enhanced component styling with larger sizes for bigger chart
-        component_styles = {
-            # Input components (green)
-            "Resume": {"color": "#4CAF50", "size": 2500, "shape": "o"},
-            "Job Description": {"color": "#4CAF50", "size": 2500, "shape": "o"},
-            "Interview Transcript": {"color": "#4CAF50", "size": 2500, "shape": "o"},
-            "Role": {"color": "#4CAF50", "size": 2500, "shape": "o"},
-            
-            # API Management (orange)
-            "API Key Manager": {"color": "#FF9800", "size": 3000, "shape": "s"},
-            "Rate Limiter": {"color": "#FF9800", "size": 3000, "shape": "s"},
-            
-            # Agents (blue)
-            "Job Matching Agent": {"color": "#2196F3", "size": 4000, "shape": "s"},
-            "Bias Classification Agent": {"color": "#2196F3", "size": 4000, "shape": "s"},
-            
-            # LLM (red)
-            "Google Gemma 3\n(27B-IT)": {"color": "#F44336", "size": 5000, "shape": "o"},
-            
-            # LangGraph Core (purple)
-            "LangGraph StateGraph": {"color": "#9C27B0", "size": 4000, "shape": "s"},
-            "InMemorySaver\nCheckpointer": {"color": "#9C27B0", "size": 3500, "shape": "s"},
-            "Conditional Routing\n(should_continue)": {"color": "#9C27B0", "size": 3500, "shape": "D"},
-            
-            # State Management (yellow)
-            "HiringState\nManagement": {"color": "#FFEB3B", "size": 3500, "shape": "s"},
-            "Evaluation Insights\nTracking": {"color": "#FFEB3B", "size": 3000, "shape": "s"},
-            "Re-evaluation\nCounter": {"color": "#FFEB3B", "size": 3000, "shape": "s"},
-            
-            # Output (gray)
-            "Final Decision": {"color": "#9E9E9E", "size": 2500, "shape": "o"},
-            "Bias Classification": {"color": "#9E9E9E", "size": 2500, "shape": "o"},
-            "Audit Trail": {"color": "#9E9E9E", "size": 2500, "shape": "o"},
-            "Process Metadata": {"color": "#9E9E9E", "size": 2500, "shape": "o"}
-        }
-        
-        # Draw enhanced components with better text positioning
-        for comp, (x, y) in components.items():
-            style = component_styles[comp]
-            ax.scatter(x, y, s=style["size"], c=style["color"], marker=style["shape"],
-                      edgecolors='black', linewidth=2, alpha=0.9, zorder=3)
-            
-            # Enhanced text with background and better spacing
-            ax.text(x, y-0.8, comp, ha='center', va='top', fontsize=10, 
-                   fontweight='bold', wrap=True,
-                   bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.9))
-        
-        # Enhanced connections with different line styles
-        connections = [
-            # Input to API Management
-            {"start": "Resume", "end": "API Key Manager", "style": "--", "color": "gray", "width": 1},
-            {"start": "Interview Transcript", "end": "Rate Limiter", "style": "--", "color": "gray", "width": 1},
-            
-            # Input to agents (main flow)
-            {"start": "Resume", "end": "Job Matching Agent", "style": "-", "color": "blue", "width": 2},
-            {"start": "Job Description", "end": "Job Matching Agent", "style": "-", "color": "blue", "width": 2},
-            {"start": "Interview Transcript", "end": "Job Matching Agent", "style": "-", "color": "blue", "width": 2},
-            {"start": "Role", "end": "Job Matching Agent", "style": "-", "color": "blue", "width": 2},
-            
-            {"start": "Resume", "end": "Bias Classification Agent", "style": "-", "color": "orange", "width": 2},
-            {"start": "Job Description", "end": "Bias Classification Agent", "style": "-", "color": "orange", "width": 2},
-            {"start": "Interview Transcript", "end": "Bias Classification Agent", "style": "-", "color": "orange", "width": 2},
-            {"start": "Role", "end": "Bias Classification Agent", "style": "-", "color": "orange", "width": 2},
-            
-            # API Management to LLM
-            {"start": "API Key Manager", "end": "Google Gemma 3\n(27B-IT)", "style": "-", "color": "red", "width": 2},
-            {"start": "Rate Limiter", "end": "Google Gemma 3\n(27B-IT)", "style": "-", "color": "red", "width": 2},
-            
-            # Agents to LLM
-            {"start": "Job Matching Agent", "end": "Google Gemma 3\n(27B-IT)", "style": "-", "color": "blue", "width": 2},
-            {"start": "Bias Classification Agent", "end": "Google Gemma 3\n(27B-IT)", "style": "-", "color": "orange", "width": 2},
-            
-            # LLM to LangGraph Core
-            {"start": "Google Gemma 3\n(27B-IT)", "end": "LangGraph StateGraph", "style": "-", "color": "purple", "width": 2},
-            {"start": "LangGraph StateGraph", "end": "InMemorySaver\nCheckpointer", "style": "-", "color": "purple", "width": 2},
-            {"start": "LangGraph StateGraph", "end": "Conditional Routing\n(should_continue)", "style": "-", "color": "purple", "width": 2},
-            
-            # State Management
-            {"start": "LangGraph StateGraph", "end": "HiringState\nManagement", "style": "-", "color": "purple", "width": 2},
-            {"start": "HiringState\nManagement", "end": "Evaluation Insights\nTracking", "style": "-", "color": "green", "width": 2},
-            {"start": "HiringState\nManagement", "end": "Re-evaluation\nCounter", "style": "-", "color": "green", "width": 2},
-            
-            # Outputs
-            {"start": "HiringState\nManagement", "end": "Final Decision", "style": "-", "color": "gray", "width": 2},
-            {"start": "HiringState\nManagement", "end": "Bias Classification", "style": "-", "color": "gray", "width": 2},
-            {"start": "HiringState\nManagement", "end": "Audit Trail", "style": "-", "color": "gray", "width": 2},
-            {"start": "HiringState\nManagement", "end": "Process Metadata", "style": "-", "color": "gray", "width": 2}
-        ]
-        
-        for conn in connections:
-            x1, y1 = components[conn["start"]]
-            x2, y2 = components[conn["end"]]
-            ax.annotate('', xy=(x2, y2), xytext=(x1, y1),
-                       arrowprops=dict(arrowstyle='->', lw=conn["width"], 
-                                     color=conn["color"], alpha=0.7,
-                                     linestyle=conn["style"]))
-        
-        # Adjust axis limits for the larger layout
-        ax.set_xlim(-1, 13)
-        ax.set_ylim(-0.5, 14.5)
-        ax.set_title("Multi-Agent AI Hiring System - Complete Architecture", 
-                    fontsize=22, fontweight='bold', pad=30)
-        ax.axis('off')
-        
-        plt.tight_layout()
-        plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
-        print(f"🏗️ Enhanced architecture diagram saved to: {save_path}")
-        plt.close()
-    
+
     def analyze_correction_performance(self, results_file: str = "results/json/batch_results.json"):
         """Analyze and display detailed correction performance metrics."""
         try:
@@ -540,23 +386,19 @@ should_continue() checks:
         """Create all available charts."""
         print("🎨 Creating all visualization charts...")
         
-        # Main evaluation charts (enhanced 6-panel layout)
+        # Main evaluation charts (enhanced 4-panel layout)
         self.create_evaluation_charts(results_file, "results/images/evaluation_results.png")
         
         # Enhanced workflow diagram
         self.create_workflow_diagram("results/images/workflow_diagram.png")
-        
-        # Enhanced system architecture
-        self.create_system_architecture_diagram("results/images/system_architecture.png")
         
         # Show correction analysis
         self.analyze_correction_performance(results_file)
         
         print("✅ All charts created successfully!")
         print("📋 Generated charts:")
-        print("   • evaluation_results.png - Enhanced 6-panel evaluation with equations and numbers")
+        print("   • evaluation_results.png - Enhanced 4-panel evaluation with equations and numbers")
         print("   • workflow_diagram.png - Enhanced LangGraph workflow visualization")
-        print("   • system_architecture.png - Comprehensive technical architecture diagram")
 
 
 def main():
@@ -567,13 +409,11 @@ def main():
     parser.add_argument('--output', default='results/images/evaluation_results.png',
                        help='Output file for evaluation charts when using --evaluation-only (default: results/images/evaluation_results.png)')
     parser.add_argument('--all', action='store_true',
-                       help='Create all charts (evaluation, workflow, architecture) - this is the default behavior')
+                       help='Create all charts (evaluation, workflow) - this is the default behavior')
     parser.add_argument('--evaluation-only', action='store_true',
                        help='Create evaluation charts only')
     parser.add_argument('--workflow', action='store_true',
                        help='Create workflow diagram only')
-    parser.add_argument('--architecture', action='store_true',
-                       help='Create architecture diagram only')
     
     args = parser.parse_args()
     
@@ -583,9 +423,9 @@ def main():
         generator.create_evaluation_charts(args.results, args.output)
     elif args.workflow:
         generator.create_workflow_diagram()
-    elif args.architecture:
-        generator.create_system_architecture_diagram()
     else:
+        # Default behavior: create all charts
+        generator.create_all_charts(args.results)
         # Default behavior: create all charts
         generator.create_all_charts(args.results)
 

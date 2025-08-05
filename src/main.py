@@ -1,5 +1,4 @@
-from typing import TypedDict, Annotated, List
-import operator
+from typing import TypedDict, List
 import logging
 from datetime import datetime
 
