@@ -284,7 +284,7 @@ def print_summary(results: list):
 def main():
     """Main batch processing function."""
     parser = argparse.ArgumentParser(description="Process hiring candidates in batch")
-    parser.add_argument("--csv", default="filtered_10K_labled_json_local.csv", help="CSV file path")
+    parser.add_argument("--csv", default="sample-data.csv", help="CSV file path")
     parser.add_argument("--max-rows", type=int, help="Maximum rows to process")
     parser.add_argument("--output", default="results/json/batch_results.json", help="Output JSON file")
     parser.add_argument("--rate-limit", type=int, default=5, help="Requests per minute")
